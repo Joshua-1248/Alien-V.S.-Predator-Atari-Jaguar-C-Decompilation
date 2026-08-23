@@ -1,3 +1,5 @@
+> **FINAL ROUTINE-AUDIT STATUS (2026-08-23):** RE #6 completed the strengthened routine-by-routine closure audit that superseded the earlier module-level v1.0.0/v1.0.1 completion wording. See `STATUS.md`, `RELEASE_STATUS.md`, and `docs/ROUTINE_ALIAS_AUDIT.md` for the exact claim boundary and validation record.
+
 # Alien vs Predator (Atari Jaguar) — C Decompilation
 
 Readable high-level C reconstruction of the ordinary Motorola 68000 portion of **Alien vs Predator** for the Atari Jaguar.
@@ -65,3 +67,9 @@ See:
 This is a reverse-engineered/source-reconstruction project. Original game code and behavior remain subject to their respective rights holders. New project scaffolding and independently written glue are distinguished from reconstructed/translated material. There is no blanket relicensing of Atari/Rebellion-derived material.
 
 See `LICENSE.md`, `PROVENANCE.md`, `CREDITS.md`, and `THIRD_PARTY_NOTICES.md`.
+
+
+## v1.0.1 verification note
+
+The validation script deliberately uses an optimized Release build so hosted compilers also diagnose optimizer-visible undefined-object assumptions around Jaguar fixed-address hardware access.
+The v1.0.1 audit also checks the ROM-side `rom.o`/`util.o` ordinary-68000 surfaces explicitly rather than implicitly grouping them with inflate/allocator support.

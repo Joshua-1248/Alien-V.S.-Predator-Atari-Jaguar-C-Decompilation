@@ -41,15 +41,27 @@ target_include_directories(avp_c PUBLIC include)
 # has a historical allocator ABI and is not part of the RAM-resident game lib.
 add_library(avp_unzip_alloc STATIC src/unzip/alloc_reconstructed.c)
 add_library(avp_unzip_inflate STATIC src/unzip/inflate_reconstructed.c)
+add_library(avp_rom_util STATIC src/unzip/util_reconstructed.c)
+add_library(avp_rom_bootstrap STATIC src/unzip/rom_bootstrap.c)
 target_include_directories(avp_unzip_alloc PUBLIC include)
 target_include_directories(avp_unzip_inflate PUBLIC include)
+target_include_directories(avp_rom_util PUBLIC include)
+target_include_directories(avp_rom_bootstrap PUBLIC include)
 
 if(AVP_STRICT)
   if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(avp_c PRIVATE -Wall -Wextra -Werror)
     target_compile_options(avp_unzip_inflate PRIVATE -Wall -Wextra -Werror)
-    # This one intentionally models the 1994 K&R malloc/free ABI.
-    target_compile_options(avp_unzip_alloc PRIVATE -Wall -Wextra
-      -Wno-builtin-declaration-mismatch -Wno-free-nonheap-object)
+    target_compile_options(avp_rom_util PRIVATE -Wall -Wextra -Werror)
+    target_compile_options(avp_rom_bootstrap PRIVATE -Wall -Wextra -Werror)
+    # This one intentionally models the 1994 K&R malloc/free ABI.  Keep
+    # compiler-specific warning suppressions off Clang so validation remains
+    # warning-option clean on both supported host compilers.
+    if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+      target_compile_options(avp_unzip_alloc PRIVATE -Wall -Wextra
+        -Wno-builtin-declaration-mismatch -Wno-free-nonheap-object)
+    else()
+      target_compile_options(avp_unzip_alloc PRIVATE -Wall -Wextra)
+    endif()
   endif()
 endif()
