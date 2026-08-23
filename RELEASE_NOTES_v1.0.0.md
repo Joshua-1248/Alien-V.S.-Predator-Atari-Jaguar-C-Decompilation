@@ -1,3 +1,5 @@
+> **HISTORICAL / SUPERSEDED:** Completion wording in this historical checkpoint is withdrawn by the fourth-pass semantic audit.
+
 # v1.0.0 — ordinary 68000 readable-C baseline
 
 This release closes the first complete readable-C representation pass over the active ordinary Motorola 68000 shipping program.

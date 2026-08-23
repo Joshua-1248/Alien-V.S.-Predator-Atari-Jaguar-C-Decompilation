@@ -1,3 +1,5 @@
+> **HISTORICAL / SUPERSEDED:** Completion wording in this historical checkpoint is withdrawn by the fourth-pass semantic audit.
+
 # v1.0.1 — verification hardening
 
 This maintenance release follows a clean-room re-extraction and double-check of v1.0.0.
