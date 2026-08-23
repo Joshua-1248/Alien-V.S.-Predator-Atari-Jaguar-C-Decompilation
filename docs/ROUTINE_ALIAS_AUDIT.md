@@ -1,3 +1,5 @@
+> **SCOPE WARNING FROM FOURTH-PASS AUDIT:** This exported-label audit remains useful, but exported labels alone are not the project completion criterion. Reachable local labels/fallthrough blocks also require semantic closure. See `docs/RE6_FOURTH_PASS_AUDIT.md`.
+
 # Routine-level alias/closure audit
 
 This file records the final source-guided audit of exported `::` labels in the surviving September 1994 `MAZE/MAZESCRN.S` and `MAZE/PLAYER.S`. Data labels are not counted as routines.

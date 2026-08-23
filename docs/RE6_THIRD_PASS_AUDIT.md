@@ -1,3 +1,5 @@
+> **SUPERSEDED AS A FINAL-STATUS CLAIM:** The Queen correction documented here remains valid, but a later fourth pass found additional semantic closure failures. See `docs/RE6_FOURTH_PASS_AUDIT.md`.
+
 # RE #6 third-pass audit correction
 
 A fresh source-to-C audit was performed after the package previously labelled

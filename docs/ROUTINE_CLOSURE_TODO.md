@@ -1,3 +1,5 @@
+> **SUPERSEDED BY FOURTH-PASS AUDIT:** The exported-routine TODO list below was completed, but that did not prove active source-block closure. See `docs/RE6_FOURTH_PASS_AUDIT.md`.
+
 # Routine closure status
 
 The pre-final routine-level closure list is complete as of RE #6.
