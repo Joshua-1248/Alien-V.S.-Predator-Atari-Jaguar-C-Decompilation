@@ -1,6 +1,3 @@
-> **FOURTH-PASS AUDIT NOTICE (2026-08-23):** The prior final routine-audit claim is withdrawn. A fresh source-to-C semantic audit found substantive active CPU/game-state logic not represented by the current C tree. Treat this archive as a **NOT FINAL audit checkpoint**. See `STATUS.md` and `docs/RE6_FOURTH_PASS_AUDIT.md`.
-
-
 # Alien vs Predator (Atari Jaguar) — C Decompilation
 
 Readable high-level C reconstruction of the ordinary Motorola 68000 portion of **Alien vs Predator** for the Atari Jaguar.
