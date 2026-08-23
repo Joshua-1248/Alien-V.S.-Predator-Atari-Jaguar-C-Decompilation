@@ -30,7 +30,7 @@ static s16 nrg_ftime,nrg_flash;
 static u32 click_track;
 static u8 old_map;
 #define COCOON_START (-1)
-#define COCOON_EMPTY (-2)
+#define COCOON_EMPTY AVP_COCOON_EMPTY
 #define COCOON_READY 17
 #define COCOON_TIME 70
 

@@ -32,6 +32,7 @@ extern s16 counttime,counting;
 extern u32 ticktime;
 extern s8 flash_dir;
 #define AVP_MAX_COCOONS 3
+#define AVP_COCOON_EMPTY (-2)
 typedef struct AvpCocoonState { s16 frame,time,level; u32 x,y; } AvpCocoonState;
 void InitCocoons(void);
 void MakeCocoon(u32 x,u32 y);

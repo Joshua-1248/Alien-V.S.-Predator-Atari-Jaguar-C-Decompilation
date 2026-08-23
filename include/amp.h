@@ -65,6 +65,8 @@ extern AvpAmp *amp_data,*amps_at;
 extern u16 collmap[AVP_AMP_GRID_W*AVP_AMP_GRID_H];
 extern u8 objmap[AVP_AMP_OBJ_ROW_BYTES*AVP_AMP_OBJ_H];
 extern u16 levels_visit,discflag;
+extern u8 inventory_table[16];
+extern u32 ampcount;
 
 
 /* Source-level explicit-argument forms of register-call AMP helpers. */
@@ -78,7 +80,10 @@ void discmove(AvpAmp *amp);
 void pre_flame_on(AvpAmp *amp);
 void flame_on(AvpAmp *amp);
 void make_spark_at(s32 x,s32 y,int blood);
+void make_spark_hit_at(s32 x,s32 y,const AvpAmp *victim);
+void make_spark(s32 x,s32 y,const AvpAmp *victim);
 void explosion_at(s32 x,s32 y);
+AvpAmp *explosion(s32 x,s32 y,s16 yoff,s16 damage,u32 range);
 void avp_amp_set_chase_callback(void (*fn)(AvpAmp *amp,s32 target_x,s32 target_y));
 
 extern u16 ngens;
@@ -100,16 +105,25 @@ void amp_setgrid(AvpAmp *amp);
 
 
 typedef struct AvpAmpPlacement { s16 x,y; u16 def; } AvpAmpPlacement;
+typedef struct AvpAmpSavedPlacement { s16 x,y,astype; u16 flags; } AvpAmpSavedPlacement;
+typedef struct AvpAmpRandomEntry { s16 def,count; } AvpAmpRandomEntry;
 typedef struct AvpAmpTemplate {
     AvpAmpModeFn mode; u16 creature,flags_or;
     u16 animseq,animframe,angle; s32 timer; s16 xvel,yvel,ldir;
     s32 xvector,yvector; s16 energy,oldenergy; u16 flags; s16 yoffset;
+    u8 host_static; /* historical amp_mode == -1; distinct from free mode == 0 */
 } AvpAmpTemplate;
 
 enum AvpAmpLevelList { AVP_AMP_LIST_HUMAN=0, AVP_AMP_LIST_PREDATOR=1, AVP_AMP_LIST_ALIEN=2, AVP_AMP_LIST_COMMON=3 };
 enum AvpAmpFightAction { AVP_AMP_FIGHT_NONE=0, AVP_AMP_FIGHT_FLAME=1, AVP_AMP_FIGHT_CROUCH=2 };
 void avp_amp_bind_level_list(unsigned list_kind,unsigned level_1based,const AvpAmpPlacement *list);
+void avp_amp_bind_random_list(unsigned player_kind,unsigned level_1based,const AvpAmpRandomEntry *list);
+const AvpAmpSavedPlacement *avp_amp_saved_level(unsigned level_1based);
 void avp_amp_bind_templates(const AvpAmpTemplate *templates,unsigned count);
+/* Historical template-mode resolver. Authored template numeric payloads may be
+ * loaded by the resource layer while mode identity remains executable C. */
+AvpAmpModeFn avp_amp_builtin_mode_for_def(unsigned def_index);
+
 void avp_amp_set_beam_counter(u32 value);
 void avp_amp_set_fight_callback(void (*fn)(AvpAmp *,int action));
 void avp_amp_set_death_callback(void (*fn)(AvpAmp *));
@@ -117,6 +131,13 @@ void avp_amp_set_lift_test_callback(int (*fn)(const AvpAmp *));
 void level_loop(void);
 void next_creature(const AvpAmpPlacement **cursor);
 void append_objs(void);
+void rebuild_level(void);
+void ram_save(void);
+void xcocoons(void);
+void rand_set(void);
+void make_queen(void);
+void make_end_queen(void);
+void end_preds(void);
 void gofight(AvpAmp *amp);
 void stun_mode(AvpAmp *amp);
 void stun_death(AvpAmp *amp);

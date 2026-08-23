@@ -1,0 +1,36 @@
+{
+  "schema": 1,
+  "allowed_terminal_statuses": [
+    "C_EXACT",
+    "C_MERGED_PROVED",
+    "HARDWARE_RESOURCE_ONLY",
+    "DEAD_OR_RETAIL_DISABLED",
+    "DATA"
+  ],
+  "blocks": {
+    "MAZE/LEVELS.S:524:swapper": {
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "Retail DUNGEON=0 makes MAZE_SWAPS=0; the entire swapper block is assembled out."
+    },
+    "MAZE/LEVELS.S:937:FixAlien": {
+      "status": "C_MERGED_PROVED",
+      "proof": "CPU panel_pos +3, source-panel equality test, and three panel_list writes are explicit in levels.c; only fixed CRY16 blitter rotations remain a hardware event."
+    },
+    "MAZE/PLAYER.S:652:CompCollect": {
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "Surviving source wraps CompCollect in unconditional .if 0."
+    },
+    "MAIN/MAIN.S:250:TestC": {
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "JagPeg TestC block is inside unconditional .if 0 and non-retail debug conditional."
+    },
+    "MAIN/MAIN.S:260:TestA": {
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "TestA exists only under !NO_DEBUG; retail source configuration uses NO_DEBUG."
+    },
+    "AMP/AMP.S:718:AREQ_ERR": {
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "Diagnostic illegal instruction exists only under !NO_DEBUG."
+    }
+  }
+}

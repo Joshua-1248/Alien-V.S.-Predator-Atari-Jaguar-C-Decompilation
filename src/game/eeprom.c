@@ -8,7 +8,7 @@
 #define REVISION 12u
 #define CHECKPOS (AVP_EE_SIZE-4u)
 
-u32 savegame;
+uintptr_t savegame;
 u8 SaveCont[AVP_SAVE_SIZE];
 u8 cartcopy[AVP_EE_SIZE];
 
@@ -18,6 +18,15 @@ static AvpInitHighFn init_high;
 
 void avp_eeprom_bind(AvpEeReadWordFn rd,AvpEeWriteWordFn wr,AvpInitHighFn high)
 { read_word=rd; write_word=wr; init_high=high; }
+/* EEPRIM.S hardware primitives are intentionally represented as backend-bound
+ * C entry points.  AVPCART.S owns the save/checksum policy; these two names
+ * preserve the historical low-level interface without copying Jaguar GPIO
+ * bit-banging into portable game code. */
+u16 eeread(u16 index)
+{ return read_word ? read_word((u16)(index&63u)) : 0u; }
+int eewrite(u16 index,u16 value)
+{ if(!write_word)return -1; write_word((u16)(index&63u),value); return 0; }
+
 
 static u32 load_be32(const u8 *p)
 { return ((u32)p[0]<<24)|((u32)p[1]<<16)|((u32)p[2]<<8)|p[3]; }
@@ -39,7 +48,7 @@ void Read_EE(void)
     unsigned i;
     if (!read_word) return;
     for (i=0;i<AVP_EE_SIZE/2u;++i) {
-        u16 v=read_word((u16)i);
+        u16 v=eeread((u16)i);
         cartcopy[i*2u]=(u8)(v>>8);
         cartcopy[i*2u+1u]=(u8)v;
     }
@@ -53,7 +62,7 @@ void Write_EE(void)
     if (!write_word) return;
     for (i=0;i<AVP_EE_SIZE/2u;++i) {
         u16 v=(u16)(((u16)cartcopy[i*2u]<<8)|cartcopy[i*2u+1u]);
-        write_word((u16)i,v);
+        (void)eewrite((u16)i,v);
     }
 }
 
@@ -62,6 +71,17 @@ void Default_EE(void)
     memset(cartcopy,0,sizeof(cartcopy));
     if (init_high) init_high(cartcopy+AVP_N_SAVES*AVP_SAVE_SIZE,
                              CHECKPOS-AVP_N_SAVES*AVP_SAVE_SIZE);
+    else {
+        /* Retail Init_High/Init_Hig defaults, already in the packed EEPROM
+         * representation used by MJP Pack_Fam: MIKE/ANDY/PURPLE/JAMES/KEONI. */
+        static const u32 packed[10]={
+            0x188513ffu,0x00129da0u,0x40d1e3ffu,0x000c3500u,
+            0x9f48bd64u,0x000a2990u,0x5206125fu,0x00061a80u,
+            0x1447351fu,0x00030d40u
+        };
+        u8 *p=cartcopy+AVP_N_SAVES*AVP_SAVE_SIZE;
+        for(unsigned i=0;i<10u;i++,p+=4)store_be32(p,packed[i]);
+    }
     store_be32(cartcopy+CHECKPOS,Check_EE());
 }
 

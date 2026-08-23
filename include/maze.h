@@ -11,10 +11,12 @@
 #define AVP_DUCT_WIDTH 1
 #define AVP_FIRST_DUCT 6
 #define AVP_LAST_DUCT 13
-#define AVP_EXP_START 60
+#define AVP_EXP_START 22
 
 extern void *build_screen;
 extern s32 sin_ang,cos_ang;
+extern s32 gpu_sin_ang,gpu_cos_ang;
+extern u32 gpu_xpos,gpu_ypos,gpu_angle;
 extern void *gmps_at,*clist_at;
 extern u16 maze_width,maze_height;
 extern s16 sprite_rescale,true_width,centre_offset;
@@ -22,6 +24,7 @@ extern u32 x_pos,y_pos,centre_angle;
 extern s16 alien_bite,end_count;
 extern u32 levfx_ID;
 
+void PlayAvP(void);
 void PostFirst(void);
 void FadeUp(void);
 void FadeDown(void);

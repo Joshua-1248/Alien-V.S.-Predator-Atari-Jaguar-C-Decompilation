@@ -6,15 +6,15 @@
 #include "levels.h"
 
 /* globals required by collision/player-facing link */
-u32 x_pos,y_pos,centre_angle; s16 player_energy,max_energy; u16 maze_width,maze_height;
+u32 x_pos,y_pos,centre_angle,fire_distance; s16 player_energy,max_energy; u16 maze_width,maze_height;
 AvpAmp level1amps[AVP_NUM_AMPS],*amp_data=level1amps,*amps_at=level1amps;
 u16 collmap[AVP_AMP_GRID_W*AVP_AMP_GRID_H]; u8 objmap[AVP_AMP_OBJ_ROW_BYTES*AVP_AMP_OBJ_H];
 u16 levels_visit,discflag; s16 cur_level; u8 fullbits[256];
 
 int main(void){
-    /* 2x2 playable + one-cell border = 4x4 8-byte cells. */
-    u8 maze[4*4*8]; memset(maze,0,sizeof maze); memset(fullbits,0,sizeof fullbits); fullbits[1]=1; avp_collision_bind_maze(maze,2,2);
-    maze_width=2;maze_height=2;
+    /* 4x4 maze, matching the historical width-as-row-stride layout. */
+    u8 maze[4*4*8]; memset(maze,0,sizeof maze); memset(fullbits,0,sizeof fullbits); fullbits[1]=1; avp_collision_bind_maze(maze,4,4);
+    maze_width=4;maze_height=4;
     /* Open room is safe. */
     assert(SafePos(64,(1<<16)|0x8000,(1<<16)|0x8000,10)==AVP_COLL_SAFE);
     /* solid left wall type 1 catches near-left position */

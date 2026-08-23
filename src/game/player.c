@@ -48,7 +48,7 @@ u32 bg_fx;
 s16 bg_repeat,bg_delay,bg_count,last_bg;
 
 /* Owned by other translated modules / runtime glue. */
-extern u32 savegame;
+extern uintptr_t savegame;
 extern s16 show_mt;
 extern u8 acs_level;
 extern s16 hugkill,use_cocoon;
@@ -229,19 +229,28 @@ void MovePlayer(void)
     if(!turn_mode){ if(pressed(keys,JOY_RIGHT)){ax+=sa;ay+=ca;} if(pressed(keys,JOY_LEFT)){ax-=sa;ay-=ca;} }
 
     {
+        /* PLAYER.S::LMM: decelerate, apply this frame's acceleration, then
+         * estimate speed as 3*max(|x|,|y|)+min(|x|,|y|).  The previous C
+         * accidentally took the estimate before adding ax/ay, which changes
+         * the MIN_SPEED and max-speed branches near their thresholds. */
         s32 vx=x_vel-(x_vel>>dec_shift),vy=y_vel-(y_vel>>dec_shift);
-        s32 sx=(vx<0)?-1:0,sy=(vy<0)?-1:0;
-        u32 ux=(vx<0)?(u32)(-(s64)vx):(u32)vx,uy=(vy<0)?(u32)(-(s64)vy):(u32)vy;
-        u32 approx=ux+uy+2u*(ux>uy?ux:uy);
+        int sx,sy;
+        u32 ux,uy,approx;
         vx+=ax; vy+=ay;
-        if(!ax&&!ay && approx<(0x200u*3u)) vx=vy=0;
-        if(ax||ay){
-            u32 ms=max_speed*3u;
-            u32 avx=(vx<0)?(u32)(-(s64)vx):(u32)vx,avy=(vy<0)?(u32)(-(s64)vy):(u32)vy;
-            u32 ap=avx+avy+2u*(avx>avy?avx:avy);
-            if(ap>ms){ vx-=ax; vy-=ay; }
+        sx=vx<0; sy=vy<0;
+        ux=sx?(u32)(-(s64)vx):(u32)vx;
+        uy=sy?(u32)(-(s64)vy):(u32)vy;
+        approx=ux+uy+2u*(ux>uy?ux:uy);
+
+        if(!ax&&!ay && approx<(0x200u*3u)){
+            ux=uy=0;
         }
-        (void)sx;(void)sy; x_vel=vx;y_vel=vy;
+        vx=sx?-(s32)ux:(s32)ux;
+        vy=sy?-(s32)uy:(s32)uy;
+        if((ax||ay) && approx>max_speed*3u){
+            vx-=ax; vy-=ay;
+        }
+        x_vel=vx;y_vel=vy;
     }
 
     if((x_vel|y_vel)==0) return;
@@ -333,55 +342,185 @@ void ExtraKeys(void)
 }
 void TestKeys(void){ /* NO_DEBUG retail build compiles the debug test body out. */ }
 
+/* Semantic sound selectors for the source-level PLAYER.S pain branches.
+ * The host audio backend maps these IDs to the user-imported retail sound
+ * resources; the important game-side behavior here is the exact branch and
+ * random-selection ordering. */
+enum {
+    AVP_SFX_HUMAN_AAGH_A = 40,
+    AVP_SFX_HUMAN_AAGH_B = 41,
+    AVP_SFX_HUMAN_UHH_A  = 42,
+    AVP_SFX_HUMAN_UHH_B  = 43,
+    AVP_SFX_HUMAN_UHH_C  = 44,
+    AVP_SFX_ALIEN_PAIN_A = 45,
+    AVP_SFX_ALIEN_PAIN_B = 46,
+    AVP_SFX_ALIEN_PAIN_C = 47,
+    AVP_SFX_ALIEN_PAIN_D = 48,
+    AVP_SFX_PRED_PAIN_A  = 49,
+    AVP_SFX_PRED_PAIN_B  = 50,
+    AVP_SFX_PRED_PAIN_C  = 51,
+    AVP_SFX_PRED_PAIN_D  = 52
+};
+
+static void pain_sfx(unsigned id)
+{
+    const AvpRuntimeOps *o=avp_runtime_ops();
+    if(o->play_sfx)o->play_sfx(o->user,id);
+}
+
+/* PLAYER.S::HumanPain.  random is deliberately called before hugkill is
+ * tested: the assembly consumes the RNG value even on the forced facehugger
+ * scream path. */
+void HumanPain(void)
+{
+    u32 r=avp_random();
+    if(hugkill || (r&7u)>5u){
+        pain_sfx((r&1u)?AVP_SFX_HUMAN_AAGH_A:AVP_SFX_HUMAN_AAGH_B);
+        return;
+    }
+    switch((r&7u)>>1){
+    case 0: pain_sfx(AVP_SFX_HUMAN_UHH_A); break;
+    case 1: pain_sfx(AVP_SFX_HUMAN_UHH_B); break;
+    default:pain_sfx(AVP_SFX_HUMAN_UHH_C); break;
+    }
+}
+
 void Pain(void)
 {
-    s32 p=pain;
+    s32 p=(s16)pain;
+    s16 delta=0;
+
     if(player_energy>0){
-        s16 delta=(s16)(old_energy-player_energy);old_energy=player_energy;
-        if(delta>0){
-            p+=(s32)delta+50;
-            if((u32)(frame_counter-last_moan)>10u){
-                const AvpRuntimeOps *o=avp_runtime_ops();last_moan=frame_counter;
-                if(o->play_sfx)o->play_sfx(o->user,40u+((unsigned)(player_type>>2)*4u)+(avp_random()&3u));
+        delta=(s16)(old_energy-player_energy);
+        old_energy=player_energy;
+    }
+
+    if(player_energy>0 && delta>0){
+        /* Source performs the sound decision before adding MIN_PAIN. */
+        if((u32)(frame_counter-last_moan)>10u){
+            u32 r;
+            last_moan=frame_counter;
+            if(player_type==PT_HUMAN){
+                HumanPain();
+            }else if(player_type==PT_ALIEN){
+                r=avp_random()&3u;
+                pain_sfx((unsigned)(AVP_SFX_ALIEN_PAIN_A+r));
+            }else{
+                r=avp_random()&3u;
+                pain_sfx((unsigned)(AVP_SFX_PRED_PAIN_A+r));
             }
-        } else p-=20;
-    } else p-=20;
-    if(p<=0){pain=0;fade_c=0x8880u;return;}
-    if(p>99)p=99;
+        }
+        p+=(s32)delta+50; /* MIN_PAIN */
+    }else{
+        p-=20;            /* RECOVERY_RATE */
+    }
+
+    if(p<=0){
+        pain=0;
+        fade_c=0x8880u;
+        return;
+    }
+    if(p>=100)p=99;      /* MAX_PAIN-1 */
     pain=(s16)p;
+
+    /* PAIN_MUL = ($10000*16)/100; MULU then SWAP is floor(p*16/100). */
     {
-        unsigned idx=(unsigned)(((u32)p*16u)/100u);if(idx>15)idx=15;
-        if(!destruct_flag)fade_c=pain_lists[player_type==PT_ALIEN?1:player_type==PT_PREDATOR?2:0][idx];
+        unsigned idx=(unsigned)(((u32)(u16)p*16u)/100u);
+        if(idx>15u)idx=15u;
+        if(!destruct_flag)
+            fade_c=pain_lists[player_type==PT_ALIEN?1:player_type==PT_PREDATOR?2:0][idx];
     }
 }
 
 
-/* PLAYER.S TestSpark/shoot_loop: source-shaped hitscan against active AMPs.
- * The Jaguar wall-distance helper is exposed through AvpRuntimeOps; if a host
- * backend does not provide it, the weapon's authored maximum distance is used. */
+
+/* PLAYER.S TestSpark/shoot_loop.  This keeps the retail 68000 ordering:
+ * random angular spread, gun-swing adjustment, CPU FireDistance wall trace,
+ * coarse shot box, signed low-word rotation, closest-z selection, damage flags
+ * and the deliberately 7/8-positioned Human spark. */
+static s32 spark_x,spark_y;
+static u32 shot_distance;
+
+static s32 abs_s32_local(s32 v){return v<0?(s32)(-(s64)v):v;}
+
 AvpAmp *TestSpark(void)
 {
-    const AvpRuntimeOps *o=avp_runtime_ops();
     AvpAmp *best=NULL;
-    s64 best_z=INT64_MAX;
-    u16 ang;
-    s32 ca,sa;
-    u32 maxdist=fire_distance,wall=0;
+    u32 closest=0xffffffffu;
+    s32 best_offset=0;
+    s32 shotx,shoty;
+    s16 cs,sn;
+    u32 trace_dist;
+    s32 boxx,boxy;
     if(!wep_fire)return NULL;
-    ang=(u16)(centre_angle>>16);
-    ca=cos_d0(ang);sa=-sin_d0(ang);
-    if(o->fire_distance && o->fire_distance(o->user,(s32)x_pos,(s32)y_pos,ang,&wall) && wall)maxdist=wall;
-    for(unsigned i=0;i<AVP_NUM_AMPS;i++){
-        AvpAmp *a=&amps_at[i];s64 dx,dy,z,xoff;u32 width;
-        if((!a->mode&&!a->host_static)||!(a->flags&(1u<<AMP_KILLABLE)))continue;
-        dx=(s64)a->xpos-(s32)x_pos;dy=(s64)a->ypos-(s32)y_pos;
-        z=(dx*ca+dy*sa)>>14; if(z<0 || (u64)z>(u64)maxdist)continue;
-        xoff=(dx*sa-dy*ca)>>14;if(xoff<0)xoff=-xoff;
-        width=(u32)fire_width<<9;if((u64)xoff>(u64)width)continue;
-        if(z<best_z){best_z=z;best=a;}
+
+    /* random leaves its 16-bit result in d0.w; SWAP/ASR #7 is equivalent to
+     * sign-extending that word and shifting it left nine places. */
+    {
+        s32 a=(s32)centre_angle+((s32)(s16)avp_random()<<9);
+        /* The surviving retail source literally tests the code label
+         * `enable_swing`, not swing_on.  The first opcode byte is non-zero in
+         * the retail routine, so the swing term is always taken. Preserve the
+         * executable behavior rather than silently correcting the source typo. */
+        a-=(s32)((s64)(s16)swing_x*0x400000ll);
+        fire_angle=(u32)a;
     }
-    if(best){best->energy=(s16)(best->energy-fire_damage);best->flags|=(u16)((1u<<AMP_PHIT)|(1u<<AMP_CLOSEHIT)|invisflag);if(player_type==PT_HUMAN)make_spark_at(best->xpos,best->ypos,0);return best;}
-    if(player_type==PT_HUMAN && wall){s32 sx=(s32)(((s64)ca*(s64)wall)>>14),sy=(s32)(((s64)sa*(s64)wall)>>14);make_spark_at((s32)x_pos+sx,(s32)y_pos+sy,0);}
+
+    {
+        u16 a=(u16)(fire_angle>>16);
+        cs=(s16)cos_d0(a);
+        sn=(s16)(-sin_d0(a));
+    }
+
+    shot_distance=FireDistance();
+    trace_dist=shot_distance?shot_distance:fire_distance;
+    {
+        s16 dw=(s16)(trace_dist>>8);
+        shotx=((s32)cs*(s32)dw)>>7;
+        shoty=((s32)sn*(s32)dw)>>7;
+    }
+    spark_x=shotx;spark_y=shoty;
+    boxx=abs_s32_local(shotx)+((s32)(s16)fire_width<<9);
+    boxy=abs_s32_local(shoty)+((s32)(s16)fire_width<<9);
+
+    for(unsigned i=0;i<AVP_NUM_AMPS;i++) {
+        AvpAmp *a=&amps_at[i];
+        s32 dx,dy,adx,ady,rx,ry,z,xoff;
+        u32 uz;
+        if((!a->mode&&!a->host_static)||!(a->flags&(1u<<AMP_KILLABLE)))continue;
+        dx=a->xpos-(s32)x_pos;dy=a->ypos-(s32)y_pos;
+        adx=abs_s32_local(dx);ady=abs_s32_local(dy);
+        if((u32)adx>=(u32)boxx||(u32)ady>=(u32)boxy)continue;
+
+        rx=dx>>8;ry=dy>>8;
+        z=(s32)((s32)(s16)ry*(s32)sn)+(s32)((s32)(s16)rx*(s32)cs);
+        if(z<0)continue;
+        uz=(u32)z;if(uz>=closest)continue;
+        xoff=(s32)((s32)(s16)rx*(s32)sn)-(s32)((s32)(s16)ry*(s32)cs);
+        if((u32)(abs_s32_local(xoff)>>16)>(u32)(u16)fire_width)continue;
+        closest=uz;best=a;best_offset=xoff;
+    }
+
+    if(best) {
+        s32 dx=best->xpos-(s32)x_pos,dy=best->ypos-(s32)y_pos;
+        s16 off=(s16)(best_offset>>16);
+        s32 corrx=((s32)off*(s32)sn)>>7;
+        s32 corry=((s32)off*(s32)cs)>>7;
+        dx-=corrx;dy+=corry;
+        best->energy=(s16)(best->energy-fire_damage);
+        best->flags|=(u16)((1u<<AMP_PHIT)|(1u<<AMP_CLOSEHIT)|invisflag);
+        if(player_type==PT_HUMAN) {
+            dx-=dx>>3;dy-=dy>>3;
+            make_spark_hit_at((s32)x_pos+dx,(s32)y_pos+dy,best);
+        }
+        return best;
+    }
+
+    if(player_type==PT_HUMAN && shot_distance) {
+        s32 dx=spark_x,dy=spark_y;
+        dx-=dx>>3;dy-=dy>>3;
+        make_spark_at((s32)x_pos+dx,(s32)y_pos+dy,0);
+    }
     return NULL;
 }
 

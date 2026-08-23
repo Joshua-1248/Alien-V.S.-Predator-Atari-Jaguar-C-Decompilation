@@ -117,18 +117,33 @@ const AvpHudMessageStep avp_msg_airlocked[]={
     {5,{NULL,NULL,NULL}},{INFO_WAIT(0xffff0000u,5),{NULL,NULL,NULL}},
     {5,{NULL,NULL,NULL}},{INFO_WAIT(0xffff0000u,5),{NULL,NULL,NULL}}, END_STEP
 };
+const AvpHudMessageStep avp_msg_jlift[]={
+    {INFO_NEW(0x00ff0000u),{NULL,"LIFT JAMMED",NULL}},
+    {INFO_WAIT(0x00ff0000u,4),{NULL,NULL,NULL}},
+    {5,{NULL,NULL,NULL}},{INFO_WAIT(0x00ff0000u,5),{NULL,NULL,NULL}},
+    {5,{NULL,NULL,NULL}},{INFO_WAIT(0x00ff0000u,5),{NULL,NULL,NULL}}, END_STEP
+};
 const AvpHudMessageStep avp_msg_jammed[]={
     {INFO_NEW(0x00ff0000u),{NULL,"DOOR JAMMED",NULL}},
     {INFO_WAIT(0x00ff0000u,4),{NULL,NULL,NULL}},
     {5,{NULL,NULL,NULL}},{INFO_WAIT(0x00ff0000u,5),{NULL,NULL,NULL}},
     {5,{NULL,NULL,NULL}},{INFO_WAIT(0x00ff0000u,5),{NULL,NULL,NULL}}, END_STEP
 };
+static char avp_access_text[]="SECURITY #00";
+void avp_hudmsg_set_access_code(unsigned code){if(code>99u)code=99u;avp_access_text[10]=(char)('0'+(code/10u));avp_access_text[11]=(char)('0'+(code%10u));}
 const AvpHudMessageStep avp_msg_access_denied[]={
-    {INFO_NEW(0xff000000u),{"SECURITY #","ACCESS","DENIED"}},
+    {INFO_NEW(0xff000000u),{avp_access_text,"ACCESS","DENIED"}},
     {INFO_WAIT(0xff000000u,4),{NULL,NULL,NULL}},
     {INFO_WAIT(0xffffff00u,5),{NULL,NULL,NULL}},{INFO_WAIT(0xff000000u,5),{NULL,NULL,NULL}},
     {INFO_WAIT(0xffffff00u,5),{NULL,NULL,NULL}},{INFO_WAIT(0xff000000u,5),{NULL,NULL,NULL}},
     {INFO_WAIT(0xffffff00u,5),{NULL,NULL,NULL}},{INFO_WAIT(0xff000000u,5),{NULL,NULL,NULL}}, END_STEP
+};
+
+const AvpHudMessageStep avp_msg_escape[]={
+    {INFO_NEW(0xffffff00u),{"ESCAPE","CAPSULE",NULL}},
+    {INFO_WAIT(0xffffff00u,4),{NULL,NULL,NULL}},
+    {5,{NULL,NULL,NULL}},{INFO_WAIT(0xffffff00u,5),{NULL,NULL,NULL}},
+    {5,{NULL,NULL,NULL}},{INFO_WAIT(0xffffff00u,5),{NULL,NULL,NULL}}, END_STEP
 };
 
 char avp_countdown_text[]="TIME 1:00";

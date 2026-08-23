@@ -8,10 +8,15 @@
 #include "hud.h"
 #include "eeprom.h"
 #include "mazescrn.h"
+#include "computer.h"
+#include "doors.h"
+#include "objects.h"
 #include <stddef.h>
 
 void *build_screen;
 s32 sin_ang,cos_ang;
+s32 gpu_sin_ang,gpu_cos_ang;
+u32 gpu_xpos,gpu_ypos,gpu_angle;
 void *gmps_at,*clist_at;
 u16 maze_width,maze_height;
 s16 sprite_rescale=AVP_NORMAL_SCALE,true_width=AVP_NORMAL_WIDTH,centre_offset;
@@ -26,6 +31,7 @@ extern s16 use_cocoon;
 extern void InitDblBufs(void),InitScrOverlays(void),SetMazeList(void),ScreenOff(void);
 extern void PreFrame(void),PostFrame(void),SwapScreens(void),DoPause(void);
 extern void ResetMap(void),InitComp(void),InitSprites(void),ResetMGPU(void);
+extern void LeaveLevel(void),LoadLevel(void);
 
 static const u16 avp_sintab[513]={
 #include "sintab.inc"
@@ -48,6 +54,71 @@ s32 cos_d0(u16 a){return sin_d0((u16)(a+0x4000u));}
 void FadeUp(void){faded=-1;in_fade=-1;}
 void FadeDown(void){fade_level=0;fade_lim=0x80;faded=0;in_fade=-1;fade_rate=2;}
 void ExplodeFade(void){fade_level=0;fade_lim=-0x100;faded=0;in_fade=-1;fade_rate=-1;}
+
+static void display_wait_tick(void)
+{
+    VSync();
+    /* On Jaguar MazeList is called by the display interrupt while the 68000
+     * sleeps in STOP.  Invoke its CPU-visible state portion explicitly here so
+     * the portable build has the same fade progression without an interrupt. */
+    MazeList();
+}
+
+void PlayAvP(void)
+{
+    const AvpRuntimeOps *o=avp_runtime_ops();
+    InitGame();
+    LoadLevel();
+    PostFirst();
+
+load_complete:
+    if(levfx_ID){if(o->file_event)o->file_event(o->user,0x554e4c50u,levfx_ID,0,0);levfx_ID=0;}
+    if(!destruct_flag && o->file_event)o->file_event(o->user,0x4b414c4du,0,0,0); /* KillAlarm */
+    use_cocoon=0;
+    ResetMaze();
+    if(in_fade){
+        in_fade=0;
+        while(!faded)display_wait_tick();
+        fade_level=0x80;fade_lim=0;fade_rate=-2;
+    }
+
+    for(;;){
+        if(end_count){
+            if(end_count==22 && destruct_flag && !launch_flag)ExplodeFade();
+            if((end_count==12 || end_count==11) && destruct_flag && !launch_flag){if(o->play_sfx)o->play_sfx(o->user,0); /* bsxp1 */}
+            if(end_count==10 && (!destruct_flag || launch_flag))FadeDown();
+            if(--end_count==0){
+                if(use_cocoon){UseCocoon();}
+                else break;
+            }
+        }
+        NextFrame();
+        if(comp_panel){
+            if(o->kill_sounds)o->kill_sounds(o->user);
+            if(o->play_sfx)o->play_sfx(o->user,0); /* compenga */
+            FadeDown();
+            while(!faded)display_wait_tick();
+            Computer();
+            if(o->play_sfx)o->play_sfx(o->user,0); /* compdis */
+            if(launch_flag)break;
+            fade_level=0x80;fade_lim=0;fade_rate=-2;
+        }
+        if(new_level){
+            int newduct=(new_level>=AVP_FIRST_DUCT&&new_level<=AVP_LAST_DUCT);
+            int oldduct=(cur_level>=AVP_FIRST_DUCT&&cur_level<=AVP_LAST_DUCT);
+            if(newduct||oldduct){if(o->play_sfx)o->play_sfx(o->user,0);FadeDown();}
+            else if(!levfx_ID&&!use_cocoon && o->play_sfx)o->play_sfx(o->user,0); /* ddoors */
+            if(cur_level<=AVP_LAST_DUCT && new_level<=AVP_LAST_DUCT && o->set_message)
+                o->set_message(o->user,(unsigned)(new_level>=AVP_FIRST_DUCT?4:3));
+            LeaveLevel();
+            LoadLevel();
+            goto load_complete;
+        }
+    }
+    if(o->file_event)o->file_event(o->user,0x414c524du,0,0,0); /* clear alarm_ID */
+    if(o->kill_sounds)o->kill_sounds(o->user);
+    if(o->kill_ambient)o->kill_ambient(o->user);
+}
 
 void PostFirst(void)
 {
@@ -127,7 +198,20 @@ void ResetScale(void)
 void NextFrame(void)
 {
     u16 ang=(u16)(centre_angle>>16);
+    s32 view_sin,view_cos;
+
+    /* MAZE.S snapshots the current player state for the GPU before the CPU is
+     * allowed to advance the next simulation frame.  Keep that separation in
+     * hosted builds as well; a renderer may read these gpu_* values directly. */
+    gpu_xpos=x_pos;gpu_ypos=y_pos;gpu_angle=centre_angle;
     sin_ang=sin_d0(ang); cos_ang=cos_d0(ang);
+    gpu_sin_ang=sin_ang;gpu_cos_ang=cos_ang;
+
+    /* Alien bite is a view-only push.  The source arithmetic-shifts the view
+     * cos/sin by alien_bite and adjusts only the GPU snapshot, never x_pos/y_pos. */
+    view_sin=sin_ang;view_cos=cos_ang;
+    if(alien_bite){gpu_xpos=(u32)((s32)gpu_xpos+(view_cos>>alien_bite));gpu_ypos=(u32)((s32)gpu_ypos-(view_sin>>alien_bite));}
+
     const AvpRuntimeOps *o=avp_runtime_ops();
     if(o->gpu_draw_screen)o->gpu_draw_screen(o->user);
     UpdatePlayer();

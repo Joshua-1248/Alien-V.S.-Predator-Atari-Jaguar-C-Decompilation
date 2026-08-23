@@ -10,6 +10,7 @@
 #include "maze.h"
 #include "amp.h"
 #include "player.h"
+#include "mazescrn.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -28,6 +29,14 @@
 static const u16 atantab[513]={
 #include "atantab.inc"
 };
+static const u16 tantab[257]={
+#include "tantab.inc"
+};
+static const u16 icostab[257]={
+#include "icostab.inc"
+};
+
+u32 fire_angle;
 
 static u8 *maze_data;
 static u16 bound_w,bound_h;
@@ -75,10 +84,12 @@ void Vector(const AvpXY *from,const AvpXY *to,s32 *vx,s32 *vy) {
     *vx=negx?-(s32)(u16)x:(s32)(u16)x; *vy=negy?-(s32)(u16)y:(s32)(u16)y;
 }
 
-static size_t row_cells(void) { return (size_t)bound_w+2u; }
+/* Historical `maze_width+2`/`maze_height+2` references address the low
+ * word of a 32-bit variable; +2 is an address displacement, not arithmetic. */
+static size_t row_cells(void) { return (size_t)bound_w; }
 static int inside_cell(unsigned x,unsigned y)
 {
-    return maze_data && x<row_cells() && y<(size_t)bound_h+2u;
+    return maze_data && x<(size_t)bound_w && y<(size_t)bound_h;
 }
 static u8 *cell_at(unsigned x,unsigned y)
 {
@@ -157,7 +168,7 @@ u8 SafePos(u8 height,s32 xpos,s32 ypos,u16 width)
     size_t row;
     if (!inside_cell(cx,cy)) return HIT_WALL;
     c=cell_at(cx,cy); row=row_cells()*CELL_SIZE;
-    above=(cy?c-row:c); below=(cy+1u<(size_t)bound_h+2u?c+row:c);
+    above=(cy?c-row:c); below=(cy+1u<(size_t)bound_h?c+row:c);
 
     if (fx<near) {
         if (fy<near && outside_solid(above[LEFT_WALL],1)) return HIT_WALL;
@@ -231,42 +242,183 @@ int AMPCollisions(s32 xpos,s32 ypos)
     return 0;
 }
 
-/* A conservative source-shaped LOS walker.  It follows cell-boundary crossings
- * in parameter order and tests the exact wall slot/door aperture at each
- * crossing.  Return 0 means visible, matching the 68000 routine. */
-int LineOfSight(const AvpXY *from,const AvpXY *to)
+/* Shared C form of COLLIDE.S enter_mscan/mscan/TestWall.  The scanner
+ * keeps the source's local-octant representation: primary movement always
+ * advances toward the next "right" wall while secondary movement can cross
+ * the local "top" wall first.  Distances and first-cell rounding deliberately
+ * follow the 68000 sequence rather than using floating point. */
+typedef struct AvpMazeScan {
+    int cx,cy;
+    int primary_dx,primary_dy;
+    int secondary_dx,secondary_dy;
+    unsigned primary_wall,secondary_wall;
+    u16 local_x,local_y;
+    u16 reflect;
+    u32 d_step,d_step_full,d_total,d_max;
+    u16 y_step,y_step_full;
+} AvpMazeScan;
+
+static const u8 *scan_wall(const AvpMazeScan *s,unsigned wall)
 {
-    int x=(int)((u32)from->x>>16),y=(int)((u32)from->y>>16);
-    int ex=(int)((u32)to->x>>16),ey=(int)((u32)to->y>>16);
-    int sx=(to->x>=from->x)?1:-1,sy=(to->y>=from->y)?1:-1;
-    int64_t dx=(int64_t)to->x-from->x,dy=(int64_t)to->y-from->y;
-    uint64_t adx=dx<0?(uint64_t)-dx:(uint64_t)dx,ady=dy<0?(uint64_t)-dy:(uint64_t)dy;
-    uint64_t tx_num,ty_num;
-    if(!inside_cell((unsigned)x,(unsigned)y)||!inside_cell((unsigned)ex,(unsigned)ey))return 1;
-    tx_num = adx ? (sx>0 ? (uint64_t)(0x10000u-(u16)from->x) : (uint64_t)(u16)from->x) : UINT64_MAX;
-    ty_num = ady ? (sy>0 ? (uint64_t)(0x10000u-(u16)from->y) : (uint64_t)(u16)from->y) : UINT64_MAX;
-    while(x!=ex||y!=ey) {
-        /* Compare tx_num/adx vs ty_num/ady without floating point. */
-        int cross_x;
-        if(!adx)cross_x=0; else if(!ady)cross_x=1; else cross_x=(tx_num*ady<=ty_num*adx);
-        if(cross_x) {
-            u8 *c=cell_at((unsigned)x,(unsigned)y); u16 coord;
-            uint64_t tnum=tx_num;
-            int64_t yy=(int64_t)from->y + (dy*(int64_t)tnum)/(int64_t)adx;
-            coord=(u16)yy;
-            if(check_wall(c+(sx>0?RIGHT_WALL:LEFT_WALL),coord,64u))return 1;
-            x+=sx;tx_num+=0x10000u;
-        } else {
-            u8 *c=cell_at((unsigned)x,(unsigned)y); u16 coord;
-            uint64_t tnum=ty_num;
-            int64_t xx=(int64_t)from->x + (dx*(int64_t)tnum)/(int64_t)ady;
-            coord=(u16)xx;
-            if(check_wall(c+(sy>0?BOTTOM_WALL:TOP_WALL),(sy>0?(u16)~coord:coord),64u))return 1;
-            y+=sy;ty_num+=0x10000u;
+    if(s->cx<0||s->cy<0||!inside_cell((unsigned)s->cx,(unsigned)s->cy))return NULL;
+    return cell_at((unsigned)s->cx,(unsigned)s->cy)+wall;
+}
+
+static u32 mul_frac_even(u32 step,u16 frac)
+{
+    /* Source halves d_step, MULU's by the 16-bit fraction, takes the high
+     * word, then doubles.  Preserve the resulting even rounding. */
+    u64 p=(u64)(step>>1)*(u64)frac;
+    return (u32)((p>>16)<<1);
+}
+
+static u32 scan_maze(AvpMazeScan *s)
+{
+    for(unsigned guard=0;guard<16384u;guard++) {
+        const u8 *wall;
+        u32 dist;
+        u16 coord;
+        if(s->d_total>=s->d_max)return 0;
+
+        if(s->local_y<s->y_step) {
+            /* phit_top: coord = y/y_step; first pass includes local x. */
+            u16 ratio;
+            if(s->y_step==0) ratio=0;
+            else {
+                u32 num=(u32)s->local_y<<15;
+                u16 den=(u16)((s->y_step>>1)+1u);
+                ratio=(u16)(num/den);
+            }
+            dist=s->d_total+mul_frac_even(s->d_step,ratio);
+            if(dist>=s->d_max)return 0;
+            coord=ratio;
+            if(s->d_total==0) {
+                u16 x=s->local_x,inv=(u16)~x;
+                coord=(u16)(x+(u16)(((u32)inv*(u32)ratio)>>16));
+            }
+            coord^=s->reflect;
+            wall=scan_wall(s,s->secondary_wall);
+            if(!wall || check_wall(wall,coord,64u))return dist;
+            s->cx+=s->secondary_dx;s->cy+=s->secondary_dy;
         }
-        if(x<0||y<0||!inside_cell((unsigned)x,(unsigned)y))return 1;
+
+        s->local_y=(u16)(s->local_y-s->y_step);
+        dist=s->d_total+s->d_step;
+        if(dist>=s->d_max)return 0;
+        coord=(u16)(s->local_y^s->reflect);
+        wall=scan_wall(s,s->primary_wall);
+        if(!wall || check_wall(wall,coord,64u))return dist;
+        s->cx+=s->primary_dx;s->cy+=s->primary_dy;
+
+        if(s->d_total==0) {
+            s->d_total=s->d_step;
+            s->d_step=s->d_step_full;
+            s->y_step=s->y_step_full;
+            s->local_x=0;
+        } else s->d_total+=s->d_step;
     }
     return 0;
+}
+
+static void set_dir(int dir,int *dx,int *dy,unsigned *wall)
+{
+    *dx=*dy=0;
+    switch(dir&3){
+    case 0:*dx=-1;*wall=LEFT_WALL;break;
+    case 1:*dy=-1;*wall=TOP_WALL;break;
+    case 2:*dx= 1;*wall=RIGHT_WALL;break;
+    default:*dy=1;*wall=BOTTOM_WALL;break;
+    }
+}
+
+/* FireDistance from COLLIDE.S.  fire_angle is the original 16.16 angle value
+ * and fire_distance is the authored maximum trace distance.  A return of zero
+ * means no blocking wall before that maximum. */
+u32 FireDistance(void)
+{
+    static const u8 primary_dir[8]={2,1,1,0,0,3,3,2};
+    static const u8 secondary_dir[8]={1,2,0,1,3,0,2,3};
+    static const u8 reflect_tab[8]={0,1,0,1,0,1,0,1};
+    u16 a=(u16)(fire_angle>>16);
+    unsigned oct=(unsigned)(a>>13)&7u;
+    unsigned phase=(unsigned)(a&0x1fffu)>>5;
+    unsigned idx=(oct&1u)?(256u-phase):phase;
+    AvpMazeScan q={0};
+    u16 x=(u16)x_pos,y=(u16)y_pos;
+    if(idx>256u)idx=256u;
+    q.cx=(int)((u32)x_pos>>16);q.cy=(int)((u32)y_pos>>16);
+    q.reflect=reflect_tab[oct]?0xffffu:0u;
+    switch(oct){
+    case 0:q.local_x=x;       q.local_y=y;       break; /* ENE */
+    case 1:q.local_x=(u16)~y; q.local_y=(u16)~x; break; /* NNE */
+    case 2:q.local_x=(u16)~y; q.local_y=x;       break; /* NNW */
+    case 3:q.local_x=(u16)~x; q.local_y=y;       break; /* WNW */
+    case 4:q.local_x=(u16)~x; q.local_y=(u16)~y; break; /* WSW */
+    case 5:q.local_x=y;       q.local_y=x;       break; /* SSW */
+    case 6:q.local_x=y;       q.local_y=(u16)~x; break; /* SSE */
+    default:q.local_x=x;      q.local_y=(u16)~y; break; /* ESE */
+    }
+    set_dir(primary_dir[oct],&q.primary_dx,&q.primary_dy,&q.primary_wall);
+    set_dir(secondary_dir[oct],&q.secondary_dx,&q.secondary_dy,&q.secondary_wall);
+    q.d_step_full=0x10000u+(u32)icostab[idx];
+    q.y_step_full=tantab[idx];
+    {
+        u16 remain=(u16)~q.local_x;
+        q.d_step=mul_frac_even(q.d_step_full,remain);
+        q.y_step=(u16)(((u32)q.y_step_full*(u32)remain)>>16);
+    }
+    q.d_total=0;q.d_max=fire_distance;
+    return scan_maze(&q);
+}
+
+/* Source-exact control-flow equivalent of LineOfSight.  It uses the same maze
+ * scanner as FireDistance, but the source tracks distance along the major
+ * axis and derives the minor step from the actual object delta. */
+int LineOfSight(const AvpXY *from,const AvpXY *to)
+{
+    s64 sx=(s64)to->x-(s64)from->x,sy=(s64)to->y-(s64)from->y;
+    u32 ax=(u32)(sx<0?-sx:sx),ay=(u32)(sy<0?-sy:sy);
+    int primary_dir,secondary_dir;
+    AvpMazeScan q={0};
+    u16 xf=(u16)from->x,yf=(u16)from->y;
+    int major_y;
+    if(!inside_cell((u32)from->x>>16,(u32)from->y>>16) ||
+       !inside_cell((u32)to->x>>16,(u32)to->y>>16))return 1;
+    if((ax|ay)==0)return 0;
+
+    major_y=(ay>=ax);
+    if(!major_y){
+        q.local_x=(sx<0)?(u16)~xf:xf;
+        q.local_y=(sy>=0)?(u16)~yf:yf;
+        q.d_max=ax;
+        primary_dir=(sx<0)?0:2;
+        secondary_dir=(sy>=0)?3:1;
+    }else{
+        q.local_x=(sy<0)?(u16)~yf:yf;
+        q.local_y=(sx>=0)?(u16)~xf:xf;
+        q.d_max=ay;
+        primary_dir=(sy<0)?1:3;
+        secondary_dir=(sx>=0)?2:0;
+        {u32 t=ax;ax=ay;ay=t;}
+    }
+    q.reflect=(u16)(((sx<0)^(sy>=0)^major_y)?0xffffu:0u);
+    q.cx=(int)((u32)from->x>>16);q.cy=(int)((u32)from->y>>16);
+    set_dir(primary_dir,&q.primary_dx,&q.primary_dy,&q.primary_wall);
+    set_dir(secondary_dir,&q.secondary_dx,&q.secondary_dy,&q.secondary_wall);
+
+    /* COLLIDE.S: (delta_y<<8)/((delta_x>>8)+1), with delta_x the major. */
+    {
+        u32 den=(ax>>8)+1u;
+        u64 num=(u64)ay<<8;
+        u32 step=(u32)(num/den);
+        if(step>0xffffu)step=0xffffu;
+        q.y_step_full=(u16)step;
+    }
+    q.d_step_full=0x10000u;
+    q.d_step=(u32)(u16)~q.local_x;
+    q.y_step=(u16)(((u32)q.y_step_full*(u32)q.d_step)>>16);
+    q.d_total=0;
+    return scan_maze(&q)!=0u;
 }
 
 static s32 rough_dist(s32 ax,s32 ay,s32 bx,s32 by)

@@ -25,9 +25,12 @@ extern const AvpHudMessageStep avp_msg_pressure[];
 extern const AvpHudMessageStep avp_msg_notsecure[];
 extern const AvpHudMessageStep avp_msg_airlocked[];
 extern const AvpHudMessageStep avp_msg_jammed[];
+extern const AvpHudMessageStep avp_msg_jlift[];
+extern const AvpHudMessageStep avp_msg_escape[];
 extern const AvpHudMessageStep avp_msg_access_denied[];
 extern AvpHudMessageStep avp_msg_countdown[];
 extern char avp_countdown_text[];
+void avp_hudmsg_set_access_code(unsigned code);
 
 extern u32 msg_info;
 extern u8 msg_status;

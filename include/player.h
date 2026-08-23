@@ -43,6 +43,7 @@ void MapKeys(void);
 void ChangeLevel(void);
 void ExtraKeys(void);
 void TestKeys(void);
+void HumanPain(void);
 void Pain(void);
 struct AvpAmp; struct AvpAmp *TestSpark(void);
 extern u8 map_on,allow_lcs,allow_god;

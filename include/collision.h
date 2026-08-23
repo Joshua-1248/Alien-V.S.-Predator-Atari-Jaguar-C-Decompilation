@@ -10,6 +10,9 @@ enum AvpCollisionResult { AVP_COLL_SAFE=0, AVP_COLL_WALL=1, AVP_COLL_DOOR=2 };
 u16 Angle(const AvpXY *from,const AvpXY *to);
 void Vector(const AvpXY *from,const AvpXY *to,s32 *vx,s32 *vy);
 
+extern u32 fire_angle;
+u32 FireDistance(void);
+
 void avp_collision_bind_maze(u8 *maze,u16 width,u16 height);
 u8 *avp_collision_maze_data(void);
 u16 avp_collision_maze_width(void);

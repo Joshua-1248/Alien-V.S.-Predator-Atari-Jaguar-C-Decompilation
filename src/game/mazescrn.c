@@ -9,6 +9,7 @@
 #include "hud.h"
 #include "hud_message.h"
 #include "avp_runtime.h"
+#include "eeprom.h"
 #include <stddef.h>
 #include <string.h>
 
@@ -143,7 +144,11 @@ void InitDblBufs(void){screen_flip=0;build_screen=screen_a;}
 void RestoreMazeList(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->restore_maze_list)o->restore_maze_list(o->user);}
 void SetMazeList(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->set_maze_list)o->set_maze_list(o->user);}
 void DoPause(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->pause)o->pause(o->user);}
-void MazeList(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->gpu_draw_screen)o->gpu_draw_screen(o->user);}
+void MazeList(void){
+    /* MAZESCRN.S X_FADE block executes in the active display routine. */
+    if(fade_rate){s16 n=(s16)(fade_level+fade_rate);fade_level=n;if(n==fade_lim){fade_rate=0;faded=(s8)-1;}}
+    const AvpRuntimeOps*o=avp_runtime_ops();if(o->gpu_draw_screen)o->gpu_draw_screen(o->user);
+}
 void LoseSounds(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->kill_sounds)o->kill_sounds(o->user);}
 void RestoreSounds(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->ambient)o->ambient(o->user);}
 void pause_off(void){RestoreSounds();const AvpRuntimeOps*o=avp_runtime_ops();if(o->restore_maze_list)o->restore_maze_list(o->user);}
@@ -275,14 +280,31 @@ void new_weapon(void){cur_def=avp_weapon_def(player_type,cur_wepno);if(!cur_def)
 void fire_wep(void){if(!cur_def)return;fire_damage=cur_def->damage;fire_distance=(u32)cur_def->distance<<8;fire_width=cur_def->width;}
 void toggle_invis(void){invisflag^=(1u<<AMP_INVHIT);}
 
+static u16 save_be16(const u8 *p){return (u16)(((u16)p[0]<<8)|p[1]);}
+static u32 save_be32(const u8 *p){return ((u32)p[0]<<24)|((u32)p[1]<<16)|((u32)p[2]<<8)|p[3];}
+
 void InitWeps(void){
     unsigned n=player_type==PT_HUMAN?4:player_type==PT_ALIEN?3:6;num_weps=(s16)n;
     memset(ammo_info,0,sizeof(ammo_info));
     for(unsigned i=0;i<n&&i<6;i++){const AvpWeaponDef*d=avp_weapon_def(player_type,(s16)(i+1));AvpAmmoInfo*a=&ammo_info[i];if(player_type==PT_HUMAN || i>=4){a->cur=d->init_or_dec;a->max=d->max_or_inc;a->dec=0;a->inc=0;}else{a->cur=AVP_APAMM_MAX;a->max=AVP_APAMM_MAX;a->dec=d->init_or_dec;a->inc=d->max_or_inc;}a->old=0xffffu;a->rescale=a->max?(u16)(0xffffffffu/a->max):0;}
+    if(savegame){
+        const u8 *sv=(const u8 *)(uintptr_t)savegame;
+        /* MAZESCRN.S::InitWeps restores only CPU-side mutable ammo state:
+         * Human save LONGs 2/3 are four big-endian 16-bit ammo counts;
+         * Predator save LONG 2 begins with the medpak charge. */
+        if(player_type==PT_HUMAN){for(unsigned i=0;i<4u;i++)ammo_info[i].cur=save_be16(sv+8u+i*2u);}
+        else if(player_type==PT_PREDATOR)ammo_info[5].cur=save_be16(sv+8u);
+    }
 }
 void fill_weps(void){for(int i=0;i<num_weps&&i<6;i++)ammo_info[i].cur=ammo_info[i].max;}
 void init_fades(void){outwep_bright=0;inwep_bright=MAX_FADE;inwep_no=0;outwep_no=0;remove_wepno=0;}
-void Init1stOvers(void){InitSwing();InitWeps();if(player_type==PT_PREDATOR){InitPredAvail();InitPXFades();}init_fades();fire_damage=0;new_wepno=player_type==PT_PREDATOR?4:1;cur_wepno=0;cur_def=NULL;wep_low=0;cur_weps=player_type==PT_HUMAN?0:player_type==PT_ALIEN?0x0e:0x30;old_weps=0xff;hugkill=0;hug_recov=0;hug_throw=0;}
+void Init1stOvers(void){
+    InitSwing();InitWeps();if(player_type==PT_PREDATOR){InitPredAvail();InitPXFades();}init_fades();
+    fire_damage=0;new_wepno=player_type==PT_PREDATOR?4:1;cur_wepno=0;cur_def=NULL;wep_low=0;
+    cur_weps=player_type==PT_HUMAN?0:player_type==PT_ALIEN?0x0e:0x30;
+    if(savegame){const u8 *sv=(const u8 *)(uintptr_t)savegame;u32 packed=save_be32(sv+16);cur_weps=(u8)((packed>>5)&0x3eu);}
+    old_weps=0xff;hugkill=0;hug_recov=0;hug_throw=0;
+}
 
 static void start_action(void){if(!cur_def||cur_def->action_count==0)return;unsigned a=cur_action++;if(cur_action>=cur_def->action_count)cur_action=0;wep_animptr=cur_def->actions[a];active_wep^=-1;}
 void update_wep(void){
