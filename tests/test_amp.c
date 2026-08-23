@@ -3,6 +3,7 @@
 
 #include "collision.h"
 s16 cur_level=1,num_cocoons;
+s16 game_over,key_lock; u8 acs_level;
 void MakeCocoon(u32 x,u32 y){(void)x;(void)y;}
 int LineOfSight(const AvpXY *from,const AvpXY *to){(void)from;(void)to;return 0;}
 s32 score;

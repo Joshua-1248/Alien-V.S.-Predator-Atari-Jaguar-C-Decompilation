@@ -473,6 +473,8 @@ void amp_setgrid(AvpAmp *a)
 #include "collision.h"
 #include "levels.h"
 #include "hud.h"
+#include "doors.h"
+#include "player.h"
 
 static const AvpAmpPlacement *level_lists[4][AVP_MAX_LEVEL];
 static const AvpAmpTemplate *bound_templates;
@@ -521,7 +523,127 @@ static void fire_hug_mode(AvpAmp *a){AvpAmp*h;if(!bound_templates||4u>=bound_tem
 static void wait_hug_mode(AvpAmp *a){if(!(a->flags&(1u<<AMP_EGGOPEN))){if(a->energy<=0){a->energy=0;make_dead_egg(a);return;}if((u16)a->timer!=20u){a->timer=(s32)((u16)a->timer+1u);return;}}a->mode=fire_hug_mode;}
 void eggwait(AvpAmp *a){AvpXY from,to;if(!a||player_type==PT_ALIEN)return;a->flags&=(u16)~(1u<<AMP_EGGOPEN);if(a->energy<a->ldir){a->ldir=a->energy;a->flags|=(1u<<AMP_EGGOPEN);}else{amp_setgrid(a);if(a->energy<=0){a->energy=0;make_dead_egg(a);return;}if(!amp_in_range(a,128))return;}from.x=a->xpos;from.y=a->ypos;to.x=(s32)x_pos;to.y=(s32)y_pos;if(LineOfSight(&from,&to))return;a->mode=egg_open_mode;}
 
+/* Queen state machine from AMP.S lockxxx/.lockx/qrunb/qfight through the
+ * retail death/resurrection/end-game continuations.  The original qfight
+ * tables interleave frame words, a $fe damage opcode, a damage word and an
+ * SFX pointer.  The normalized host tables below retain the gameplay-visible
+ * frame/damage ordering while sound dispatch remains behind fight_cb. */
+enum { QEV_END=-1, QEV_DAMAGE=-2 };
+static const s16 qseq_swipe[]={2,0,1,2,QEV_DAMAGE,50,3,QEV_END};
+static const s16 qseq_bite[] ={0,1,2,QEV_DAMAGE,50,2,1,QEV_END};
+static const s16 qseq_tail[] ={0,1,2,QEV_DAMAGE,50,2,1,0,QEV_END};
+static const s16 *const qseqs[4]={qseq_swipe,qseq_bite,qseq_tail,qseq_swipe};
+static const u16 qseq_anim[4]={AS_FIGHT2,AS_FIGHT1,AS_FIGHT3,AS_FIGHT2};
+static s16 queen_respawns,queen_end_timer;
+
+static int queen_trigger(int retreat)
+{
+    u16 xi=(u16)((u32)x_pos>>16), yi=(u16)((u32)y_pos>>16);
+    u16 yf=(u16)y_pos;
+    if(xi!=0x16u || yi!=0x0du)return 0;
+    return retreat ? (yf<=0xc000u) : (yf>0xc000u);
+}
+static void queen_dead_begin(AvpAmp *a);
+static void queen_lock_mode(AvpAmp *a);
+static void queen_reverse_mode(AvpAmp *a);
+static void queen_fight_mode(AvpAmp *a);
+static void queen_regen_mode(AvpAmp *a);
+static void queen_wait_card_mode(AvpAmp *a);
+static void queen_end_mode(AvpAmp *a);
+
 static void queen_delay_mode(AvpAmp *a){if(--a->timer==0)lockxxx(a);}
-static void queen_dead_mode(AvpAmp *a){if((a->flags^=(1u<<AMP_ALTFRAME))&(1u<<AMP_ALTFRAME)){if(++a->animframe==3){a->flags&=(u16)~(1u<<AMP_MOTION);a->astype=57;set_static(a);}}}
-static void queen_lock_mode(AvpAmp *a){if(a->energy<0)a->energy=0;if(a->energy==0){a->animseq=AS_DEATH;a->animframe=0;a->mode=queen_dead_mode;return;}if(a->energy<a->oldenergy){a->animseq=AS_KNOCKBACK;a->animframe=0;a->timer=2;a->mode=queen_delay_mode;return;}if(amp_in_range(a,90)){if(fight_cb)fight_cb(a,AVP_AMP_FIGHT_CROUCH);return;}if(chase_cb)chase_cb(a,(s32)x_pos,(s32)y_pos);}
+
+static void queen_play_death_mode(AvpAmp *a)
+{
+    a->flags^=(u16)(1u<<AMP_ALTFRAME);
+    /* 68000 BCHG sets Z from the old bit: BEQ when old bit was clear,
+     * which is the state where the toggled bit is now set. */
+    if(a->flags&(1u<<AMP_ALTFRAME))return;
+    if(++a->animframe!=3)return;
+    a->flags&=(u16)~(1u<<AMP_MOTION);
+    a->astype=57; /* DEF_DQUEEN */
+    if(player_type==PT_PREDATOR){
+        key_lock=1;queen_end_timer=20;a->mode=queen_end_mode;return;
+    }
+    ++queen_respawns;
+    if(queen_respawns==1){a->mode=queen_wait_card_mode;return;}
+    set_static(a);
+}
+static void queen_dead_begin(AvpAmp *a)
+{
+    const AvpRuntimeOps *o=avp_runtime_ops();
+    if(o->play_sfx)o->play_sfx(o->user,0); /* ahit: backend may remap */
+    a->animseq=AS_DEATH;a->animframe=0;a->mode=queen_play_death_mode;
+}
+static void queen_end_mode(AvpAmp *a)
+{
+    if(--queen_end_timer!=0)return;
+    set_static(a);game_over=1;
+}
+static void queen_wait_card_mode(AvpAmp *a)
+{
+    if(queen_respawns!=1){set_static(a);return;}
+    if(acs_level!=10)return;
+    a->astype=59; /* DEF_RQUEEN */
+    a->mode=queen_regen_mode;
+    queen_regen_mode(a);
+}
+static void queen_regen_mode(AvpAmp *a)
+{
+    a->flags|=(u16)(1u<<AMP_MOTION);
+    amp_setgrid(a);
+    a->flags^=(u16)(1u<<AMP_ALTFRAME);
+    if(a->flags&(1u<<AMP_ALTFRAME))return;
+    --a->animframe;
+    if((s16)a->animframe>=0)return;
+    lockxxx(a);a->energy=1000;a->oldenergy=1000;
+}
+static void queen_fight_mode(AvpAmp *a)
+{
+    const s16 *q=(const s16 *)a->aux_ptr;
+    s16 t;
+    if(!q){lockxxx(a);return;}
+    t=*q++;a->aux_ptr=(void *)q;
+    if(t==QEV_END){lockxxx(a);return;}
+    if(t==QEV_DAMAGE){
+        s16 dmg=*q++;a->aux_ptr=(void *)q;
+        if(amp_in_range(a,90)){
+            s16 scaled=(s16)(dmg*2);
+            if(player_type==PT_PREDATOR)scaled=(s16)(dmg*3);
+            player_energy=(s16)(player_energy-scaled);
+        }
+        if(fight_cb)fight_cb(a,AVP_AMP_FIGHT_CROUCH);
+        return;
+    }
+    a->animframe=(u16)t;
+}
+static void queen_choose_fight(AvpAmp *a)
+{
+    unsigned i;
+    if(--a->timer>=0)return;
+    i=(unsigned)(avp_random()&3u);
+    a->animframe=(u16)qseqs[i][0];
+    a->aux_ptr=(void *)(qseqs[i]+1);
+    a->animseq=qseq_anim[i];
+    a->mode=queen_fight_mode;
+    if(fight_cb)fight_cb(a,AVP_AMP_FIGHT_CROUCH);
+}
+static void queen_reverse_mode(AvpAmp *a)
+{
+    if(a->energy<0)a->energy=0;
+    if(a->energy==0){queen_dead_begin(a);return;}
+    if(chase_cb)chase_cb(a,0x180000,0x0e6400);
+    if(queen_trigger(0))lockxxx(a);
+}
+static void queen_lock_mode(AvpAmp *a)
+{
+    if(a->energy<0)a->energy=0;
+    if(a->energy==0){queen_dead_begin(a);return;}
+    if(a->energy<a->oldenergy){
+        a->animseq=AS_KNOCKBACK;a->animframe=0;a->timer=2;a->mode=queen_delay_mode;return;
+    }
+    if(queen_trigger(1)){a->mode=queen_reverse_mode;return;}
+    if(amp_in_range(a,90)){queen_choose_fight(a);return;}
+    if(chase_cb)chase_cb(a,(s32)x_pos,(s32)y_pos);
+}
 void lockxxx(AvpAmp *a){if(!a)return;a->mode=queen_lock_mode;a->animframe=0;a->animseq=AS_STAND;a->timer=3;}
