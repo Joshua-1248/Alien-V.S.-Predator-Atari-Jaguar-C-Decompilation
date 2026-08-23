@@ -32,6 +32,7 @@ add_library(avp_c STATIC
   src/game/collectables.c
   src/game/amp.c
   src/game/eeprom.c
+  src/game/savegame.c
   src/game/levels.c
   src/game/doors.c
 )

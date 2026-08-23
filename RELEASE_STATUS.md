@@ -1,5 +1,5 @@
-# Release status — WORKING GITHUB SNAPSHOT / NOT FINAL
+# Release status
 
-This package is an in-progress semantic-fix snapshot for updating the repository while the source-block audit continues. It supersedes the fourth-pass checkpoint as the best current working tree, but it is **not** a final v1.0 readable-C release.
+**State:** advanced RE #6 working snapshot — NOT FINAL
 
-See `STATUS.md` and `docs/RE6_WORKING_FIXES_M2.md`.
+Mechanical GCC/Clang/test/link/publication gates pass at the handoff point. Semantic source-block closure is still awaiting final MJP and whole-tree proof. Do not create a v1.0 final tag from this snapshot.

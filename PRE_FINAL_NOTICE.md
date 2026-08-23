@@ -1,7 +1,9 @@
-# RE #6 working pre-final notice
+# PRE-FINAL NOTICE — RE #6 advanced semantic working tree
 
-**This tree is not final.**
+This tree is the newest working C/H snapshot at the end of RE #6. It contains many source-level corrections beyond the earlier M2 checkpoint and currently passes strict GCC and Clang mechanical validation.
 
-It includes verified post-fourth-pass corrections and passes the existing GCC/Clang/tests/link/payload gates, but active source-block/control-flow closure is still in progress. Do not tag this snapshot as the final 100% readable-C release.
+**Do not tag or publish it as the final 100% readable-C release yet.**
 
-See `STATUS.md` and `docs/RE6_WORKING_FIXES_M2.md`.
+The remaining acceptance criterion is active source-block/control-flow closure, especially the historically source-missing MJP front-end block. Every reachable ordinary-68000 CPU decision must be explicit readable C or be proven to lie behind a hardware/resource/presentation boundary with no lost game/control semantics.
+
+See `STATUS.md` and `docs/RE6_TO_RE7_HANDOFF.md`.
