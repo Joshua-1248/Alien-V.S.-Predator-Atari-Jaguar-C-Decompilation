@@ -41,6 +41,8 @@ void UseCocoon(void);
 void UpdateCocoons(void);
 void RedrawCocoons(void);
 void ResetMap(void);
+typedef struct AvpMapInfo { s16 x,y,w,h; } AvpMapInfo;
+extern AvpMapInfo map_info;
 extern u8 show_coords,map_on;
 extern s16 use_cocoon,num_cocoons;
 extern u32 ccn_xsave,ccn_ysave;
@@ -48,6 +50,11 @@ extern AvpCocoonState cocoon_data[AVP_MAX_COCOONS];
 
 /* Explicit C surfaces for the active HUD.S routines.  Pixel/Blitter/GPU work
  * is routed through AvpRuntimeOps; game-side state remains visible here. */
+typedef struct AvpTrackerAudioState { u32 volume,pitch,env_rate,mod_depth; } AvpTrackerAudioState;
+extern AvpTrackerAudioState tracker_audio_state;
+extern s16 pred_meter_left,pred_meter_right;
+void avp_hud_set_tracker_distance(u32 nearest);
+void avp_hud_set_pred_meter_samples(s32 a,s32 b);
 void TracTest(void); void HUD_human(void); void TC(void); void HP2(void); void UpdtHUD(void);
 void InitNrg(void); void UpdtNrg(void); void extract_cocoon(u32 packed,AvpCocoonState *out); void DrawCocoon(void);
 void ShowPos(void); void xDecPrint(void); void DecPrint(void); void DecCommon(void); void HexPrint(void);

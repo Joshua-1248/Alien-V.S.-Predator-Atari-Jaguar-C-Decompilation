@@ -22,6 +22,7 @@ static unsigned vblanks,blits,loads;
 static u16 files_seen[16];
 static unsigned modes_seen[16],roles_seen[16];
 static s32 choice_reply;
+static char fame_draw[5][2][16];
 
 static int scripted_pad;
 void readpad(void){ if(!scripted_pad)joy_cur=0xffffffffu; joy_edge=joy_cur; }
@@ -39,6 +40,13 @@ static int choose(void *u,unsigned mode,s32 *choice)
     (void)u;(void)mode;*choice=choice_reply;return 1;
 }
 
+
+static void draw_text(void *u,unsigned line,const char *text,unsigned x)
+{
+    (void)u;
+    if(line<5u){unsigned col=(x>=100u)?1u:0u;strncpy(fame_draw[line][col],text,15u);fame_draw[line][col][15]=0;}
+}
+
 static int fame_name(void *u,char out[7])
 {
     (void)u;memcpy(out,"ABCDEF",7);return 1;
@@ -51,6 +59,7 @@ int main(void)
     ops.wait_blitter=wait_blit;
     ops.frontend_load_resource=load_resource;
     ops.frontend_choice=choose;
+    ops.draw_text=draw_text;
     avp_runtime_bind(&ops);
 
     choice_reply=4;
@@ -72,14 +81,17 @@ int main(void)
     { const u16 want[2]={234,235};
       for(unsigned i=0;i<2u;i++)assert(files_seen[i]==want[i]); }
     assert(blits==3u && vblanks==1u);
-
-
-
     /* Exact retail Hall-of-Fame default packing. */
     memset(cartcopy,0,sizeof(cartcopy));
     Init_Hig();
+    memset(fame_draw,0,sizeof(fame_draw));
+    player_type=PT_HUMAN;score=0;choice_reply=0;Do_Fame();
+    /* Retail $01CC70 produces fixed ten-character score fields. */
+    assert(strcmp(fame_draw[0][1],"   1220000")==0);
+    assert(strcmp(fame_draw[1][1],"    800000")==0);
+    assert(strcmp(fame_draw[2][1],"    600000")==0);
     { const u32 want[10]={0x188513ffu,0x00129da0u,0x40d1e3ffu,0x000c3500u,
-                          0x9f48bd64u,0x000a2990u,0x5206125fu,0x00061a80u,
+                          0x9f48bd64u,0x000927c0u,0x5206125fu,0x00061a80u,
                           0x1447351fu,0x00030d40u};
       const u8 *p=cartcopy+60;
       for(unsigned i=0;i<10u;i++,p+=4){u32 v=((u32)p[0]<<24)|((u32)p[1]<<16)|((u32)p[2]<<8)|p[3];assert(v==want[i]);}
@@ -125,11 +137,13 @@ int main(void)
     }
     scripted_pad=0;joy_cur=0xffffffffu;
 
-    /* New_Make is an in-place scaler in retail, not a second allocation. */
+    /* Make_New and New_Make are both in-place in retail: the caller selects
+     * Ob_Addr explicitly; neither routine owns an allocator. */
     {
-        AvpMjpObject objs[2];
+        AvpMjpObject objs[20];
         memset(objs,0,sizeof(objs));
-        avp_mjp_bind_objects(objs,2);
+        avp_mjp_bind_objects(objs,20);
+        Ob_Addr=&objs[0];
         Ob_Data=0x1000;Ob_Pos_X=100;Ob_Pos_Y=50;Ob_Height=20;Ob_Width=40;Ob_Trans=0;
         AvpMjpObject *a=Make_New();
         assert(a==&objs[0]);
@@ -138,8 +152,13 @@ int main(void)
         assert(b==a);
         assert(b->scaled==1u && b->scale_x==12 && b->scale_y==12);
         assert(b->x==92 && b->y==46);
-        /* A second Make_New must still consume slot 1, proving New_Make did not. */
+        Ob_Addr=&objs[1];
         assert(Make_New()==&objs[1]);
+
+        memset(objs,0,sizeof(objs));
+        Make_Rel();
+        for(unsigned i=0;i<9u;i++)assert(objs[1u+i*2u].width==16);
+        for(unsigned i=0;i<9u;i++)assert(objs[i*2u].width==0);
     }
 
     /* Recovered $01E166 semantics: Intro and mode 7 can be skipped on the

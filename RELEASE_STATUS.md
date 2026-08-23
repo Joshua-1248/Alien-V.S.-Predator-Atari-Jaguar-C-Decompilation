@@ -1,5 +1,5 @@
 # Release status
 
-**State:** advanced RE #6 working snapshot — NOT FINAL
+**State:** RE #7 ordinary-68000 semantic closure complete — final release candidate
 
-Mechanical GCC/Clang/test/link/publication gates pass at the handoff point. Semantic source-block closure is still awaiting final MJP and whole-tree proof. Do not create a v1.0 final tag from this snapshot.
+The fail-closed source-block matrix reports **0 unresolved executable 68000 labels**. Final release status depends on the clean-package GCC/Clang/hash/link/test/publication gates documented in `STATUS.md` and `docs/VALIDATION.md`.

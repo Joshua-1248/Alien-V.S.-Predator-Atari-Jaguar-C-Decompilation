@@ -9,7 +9,7 @@ This repository is intentionally separate from the byte-exact preservation repos
 
 ## Status
 
-The repository contains a broad readable C/H reconstruction across startup, Jaguar support, files/resources, Object Processor orchestration, audio control, maze/gameplay, player movement, collision interfaces, doors, HUD, weapons, AMP/creature state, progression/computer logic, EEPROM/save support, and the reconstructed MJP/front-end block. A post-routine source-block audit is still in progress and has found additional semantic gaps; see `STATUS.md`.
+The repository contains a completed readable C/H reconstruction of the shipping ordinary-68000 CPU domain across startup, Jaguar support, files/resources, Object Processor orchestration, audio control, maze/gameplay, player movement, collision interfaces, doors, HUD, weapons, AMP/creature state, progression/computer logic, EEPROM/save support, and the reconstructed MJP/front-end block. The RE #7 fail-closed source-block audit is complete: the closure matrix reports **0 unresolved executable ordinary-68000 labels**. See `STATUS.md` and `research/re7_closure/MATRIX.md`.
 
 This is **not** a claim that every original 1994 source line, comment, macro, variable name or compiler decision has been recovered. Where historical source does not survive (notably reconstructed MJP/OBJECTS/support modules), the C is a readable semantic reconstruction verified against the preservation project. Jaguar GPU/DSP programs are separate processor domains and intentionally remain outside the 68000-to-C denominator.
 

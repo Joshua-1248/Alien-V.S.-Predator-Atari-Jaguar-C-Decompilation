@@ -8,5 +8,6 @@ extern volatile u32 one_second_ticks;
 extern volatile u16 min_frame_ticks, video_mul_a, video_mul_b;
 void InitJaguar(void);
 void InitVideo(void);
+void InitMJP(void);
 void SetScreen(u32 width,u32 height);
 #endif

@@ -92,9 +92,11 @@ def main():
     ap.add_argument('--md-out',required=True,type=Path)
     a=ap.parse_args()
     ledger={}
+    scopes=[]
     if a.ledger and a.ledger.exists():
         obj=json.loads(a.ledger.read_text())
         ledger=obj.get('blocks',{})
+        scopes=obj.get('scopes',[])
     rows=[]
     for module,cfiles in MODULE_MAP.items():
         candidates=[a.asm_root/module, a.asm_root/'Source Code'/module]
@@ -109,6 +111,15 @@ def main():
             r['symbol_hint']='present' if hint else 'absent'
             r['status']=manual.get('status','UNRESOLVED')
             r['proof']=manual.get('proof','')
+            # A manually proved routine span may close executable labels inside
+            # that exact source range.  It never promotes data and never runs
+            # from symbol-name matching alone.
+            if r['status']=='UNRESOLVED' and r['kind']!='data':
+                for sc in scopes:
+                    if (sc.get('module')==module and int(sc.get('start_line',-1))<=r['line']<=int(sc.get('end_line',-1))):
+                        r['status']=sc.get('status','UNRESOLVED')
+                        r['proof']='scope: '+sc.get('proof','')
+                        break
             # Data labels don't need code translation unless ledger overrides.
             if r['status']=='UNRESOLVED' and r['kind']=='data': r['status']='DATA_CANDIDATE'
             rows.append(r)
