@@ -19,6 +19,10 @@ int main(void){
  avp_levels_set_table(lv,15); avp_levels_set_save_words(0,0); player_type=PT_HUMAN; InitLevels();
  assert(cur_level==3); assert(x_pos==0x111000); assert(y_pos==0x222000);
  InitDoors(); assert(fullbits[0]==0); assert(fullbits[0x20]&AVP_WB_DOOR); assert(fullbits[0xa0]&AVP_WB_DOOR);
+ player_type=PT_HUMAN; InitAccess(); assert(acs_level==0);
+ player_type=PT_ALIEN; InitAccess(); assert(acs_level==10);
+ player_type=PT_PREDATOR; InitAccess(); assert(acs_level==10);
+ player_type=PT_HUMAN;
  memset(maze,0,sizeof(maze)); avp_doors_bind_maze(maze,2,2); cur_level=3;
  /* cell 0: centre side door wall id 0x20, opening state 13 */
  maze[0]=0x20; maze[6]=13; SaveDoors(); maze[6]=3; ResetDoors(); assert(maze[6]==13);

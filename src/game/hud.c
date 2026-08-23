@@ -9,6 +9,7 @@
 #include "hud_score.h"
 #include "avp_runtime.h"
 #include "levels.h"
+#include "eeprom.h"
 #include <string.h>
 
 #define DESTRUCT_TIME 120
@@ -19,6 +20,7 @@ s8 flash_dir;
 
 u8 show_coords,map_on;
 s16 use_cocoon,num_cocoons;
+u32 ccn_xsave,ccn_ysave;
 AvpCocoonState cocoon_data[AVP_MAX_COCOONS];
 static s16 old_meter,scope_frame;
 s16 nrg_x,nrg_y,nrg_barwidth,nrg_width,nrg_height,nrg_nframes,nrg_frame;
@@ -51,13 +53,81 @@ void avp_hud_set_countdown_callbacks(AvpCountdownCueFn cue,AvpAlarmFn alarm)
 }
 
 
+static u32 hud_be32(const u8 *p)
+{
+    return ((u32)p[0]<<24)|((u32)p[1]<<16)|((u32)p[2]<<8)|(u32)p[3];
+}
+
+static u32 ror32(u32 v,unsigned n)
+{
+    n&=31u;
+    return n ? (v>>n)|(v<<(32u-n)) : v;
+}
+
+void extract_cocoon(u32 packed,AvpCocoonState *out)
+{
+    u32 v;
+    u16 low,rot;
+    s16 f;
+    if(!out)return;
+
+    /* HUD.S extract_cocoon operates on d2.  The apparently odd masks and
+     * MOVE.W #$8000 preserve the cell coordinate in the high word and centre
+     * the cocoon within that cell in the low word. */
+    v=(packed>>10)&0x003f0000u;
+    out->x=(v&0xffff0000u)|0x00008000u;
+    v=(packed>>4)&0x003f0000u;
+    out->y=(v&0xffff0000u)|0x00008000u;
+    out->level=(s16)((packed>>16)&0x0fu);
+
+    low=(u16)packed;
+    rot=(u16)((u16)(low<<5)|(u16)(low>>11)); /* ROL.W #5 */
+    f=(s16)(rot&0x1fu);
+    if(f==(s16)(32+COCOON_EMPTY)){
+        out->frame=COCOON_EMPTY;
+        return;
+    }
+
+    ++num_cocoons;
+    if(f==(s16)(32+COCOON_START)){
+        out->frame=COCOON_START;
+        out->time=1;
+    }else{
+        out->frame=f;
+        out->time=-1; /* force redraw without advancing the restored frame */
+    }
+}
+
 void InitCocoons(void)
 {
-    num_cocoons=0;use_cocoon=0;
-    for(unsigned i=0;i<AVP_MAX_COCOONS;i++){cocoon_data[i].frame=COCOON_EMPTY;cocoon_data[i].time=0;cocoon_data[i].level=0;cocoon_data[i].x=cocoon_data[i].y=0;}
-    /* Packed save-game cocoon extraction stays at the save/resource boundary;
-     * when a host supplies restored states it can write this public array before
-     * ResetHUD.  The original format is documented in docs/savegame. */
+    num_cocoons=0;
+    use_cocoon=0;
+    for(unsigned i=0;i<AVP_MAX_COCOONS;i++){
+        cocoon_data[i].frame=COCOON_EMPTY;
+        cocoon_data[i].time=0;
+        cocoon_data[i].level=0;
+        cocoon_data[i].x=cocoon_data[i].y=0;
+    }
+
+    if(player_type!=PT_ALIEN)return;
+    ccn_xsave=0;
+    ccn_ysave=0;
+
+    if(savegame){
+        const u8 *p=(const u8 *)(uintptr_t)savegame+8;
+        u32 d0=hud_be32(p);
+        u32 d2=d0;
+        extract_cocoon(d2,&cocoon_data[0]);
+
+        d0&=0x000007ffu;
+        d2=ror32(d0,11);
+        d0=hud_be32(p+4);
+        d2|=d0>>11;
+        extract_cocoon(d2,&cocoon_data[1]);
+
+        d2=d0<<10;
+        extract_cocoon(d2,&cocoon_data[2]);
+    }
 }
 void MakeCocoon(u32 x,u32 y)
 {
@@ -72,12 +142,31 @@ int CheckCocoon(void)
     int ready=(cocoon_data[AVP_MAX_COCOONS-1].frame==COCOON_READY);
     use_cocoon=(s16)(ready?-1:0);return ready;
 }
+static void draw_cocoon_index(unsigned i)
+{
+    AvpCocoonState *c;
+    if(i>=AVP_MAX_COCOONS)return;
+    c=&cocoon_data[i];
+    {const AvpRuntimeOps *o=avp_runtime_ops();
+     if(o->object_event)o->object_event(o->user,0x206u,i,(u32)(u16)c->frame,(u32)(u16)c->time);}
+}
 void UseCocoon(void)
 {
     AvpCocoonState *c=&cocoon_data[AVP_MAX_COCOONS-1];
+    u32 dx,dy;
     if(c->frame!=COCOON_READY)return;
-    new_x=(s32)((c->x&0xffff0000u)|0x8000u);new_y=(s32)((c->y&0xffff0000u)|0x8000u);new_level=c->level;player_energy=max_energy;
-    cocoon_data[2]=cocoon_data[1];cocoon_data[1]=cocoon_data[0];cocoon_data[0].frame=COCOON_EMPTY;cocoon_data[0].time=0;
+
+    dx=(c->x&0xffff0000u)|0x00008000u;
+    dy=(c->y&0xffff0000u)|0x00008000u;
+    new_x=(s32)dx;new_y=(s32)dy;new_level=c->level;
+    ccn_xsave=dx;ccn_ysave=dy;
+    player_energy=max_energy;
+
+    /* HUD.S copies the first two complete cocoon records toward the oldest
+     * slot and then resets only cocoon_frame in the first slot. */
+    cocoon_data[2]=cocoon_data[1];
+    cocoon_data[1]=cocoon_data[0];
+    cocoon_data[0].frame=COCOON_EMPTY;
     if(num_cocoons>0)--num_cocoons;
     use_cocoon=0;
     RedrawCocoons();
@@ -86,11 +175,27 @@ void UseCocoon(void)
 void UpdateCocoons(void)
 {
     for(unsigned i=0;i<AVP_MAX_COCOONS;i++){
-        AvpCocoonState *c=&cocoon_data[i];if(c->frame==COCOON_EMPTY||c->frame==COCOON_READY)continue;
-        if(c->time<0||--c->time==0){++c->frame;c->time=COCOON_TIME;}
+        AvpCocoonState *c=&cocoon_data[i];
+        if(c->frame==COCOON_EMPTY)continue;
+        if(c->time<0){
+            /* Restored ready/in-progress cocoon: force redraw of the current
+             * frame, but do not advance it. */
+            c->time=COCOON_TIME;
+            draw_cocoon_index(i);
+            continue;
+        }
+        if(c->frame==COCOON_READY)continue;
+        --c->time;
+        if(c->time!=0)continue;
+        ++c->frame;
+        c->time=COCOON_TIME;
+        draw_cocoon_index(i);
     }
 }
-void RedrawCocoons(void){ /* renderer owns the 32x32 HUD images */ }
+void RedrawCocoons(void)
+{
+    for(unsigned i=0;i<AVP_MAX_COCOONS;i++)draw_cocoon_index(i);
+}
 
 void ResetMap(void)
 {
@@ -184,8 +289,7 @@ void InitNrg(void){
     nrg_size=(u16)((u16)nrg_width*(u16)nrg_height);nrg_frame=0;nrg_ftime=4;nrg_flash=0;
 }
 void UpdtNrg(void){if(nrg_nframes>0){++nrg_frame;if(nrg_frame>=nrg_nframes)nrg_frame=0;}if(--nrg_ftime<0){nrg_ftime=4;nrg_flash^=-1;}hud_event(HUD_EV_ENERGY,(u32)(u16)player_energy,(u32)(u16)nrg_frame,(u32)nrg_rescale);}
-void extract_cocoon(void){/* Save-format extraction belongs at the user-ROM/save boundary; InitCocoons owns decoded state. */}
-void DrawCocoon(void){hud_event(HUD_EV_COCOON,(u32)num_cocoons,0,0);}
+void DrawCocoon(void){RedrawCocoons();}
 void ShowPos(void){hud_event(HUD_EV_POS,(u32)(x_pos>>16),(u32)(y_pos>>16),(u32)(u16)centre_angle);}
 void xDecPrint(void){hud_event(HUD_EV_POS,0,0,0);} void DecPrint(void){xDecPrint();} void DecCommon(void){xDecPrint();} void HexPrint(void){xDecPrint();}
 void ZeroHUDBright(void){hud_bright=-128;hud_event(HUD_EV_PALETTE,(u32)(u8)hud_bright,0,0);}

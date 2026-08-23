@@ -7,6 +7,7 @@
 #include "levels.h"
 #include "hud.h"
 #include "eeprom.h"
+#include "mazescrn.h"
 #include <stddef.h>
 
 void *build_screen;
@@ -60,6 +61,7 @@ void PostFirst(void)
 
 void ResetMaze(void)
 {
+    hug_init();
     ResetMap();
     ResetMGPU();
     alien_bite=0;

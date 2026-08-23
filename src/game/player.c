@@ -397,9 +397,11 @@ void TidyMove(void) {
 
     old_pos=new_pos;
     /* Source indexes MAZE_DATA by high words of 16.16 world coordinates and
-     * uses (maze_width+2) cells per row, each cell 8 bytes.  The public C
+     * uses maze_width cells per row, each cell 8 bytes.  In the 68000 source,
+     * `maze_width+2` is an address displacement selecting the low word of the
+     * 32-bit `maze_width` variable; it does NOT mean width plus two.  The public C
      * decomp stores the byte offset instead of a host pointer. */
     u32 gx=x_pos>>16, gy=y_pos>>16;
-    new_pos=((gy*(u32)(maze_width+2u))+gx)<<MAZE_BLOCK_SHIFT;
+    new_pos=((gy*(u32)maze_width)+gx)<<MAZE_BLOCK_SHIFT;
 }
 

@@ -42,12 +42,13 @@ void RedrawCocoons(void);
 void ResetMap(void);
 extern u8 show_coords,map_on;
 extern s16 use_cocoon,num_cocoons;
+extern u32 ccn_xsave,ccn_ysave;
 extern AvpCocoonState cocoon_data[AVP_MAX_COCOONS];
 
 /* Explicit C surfaces for the active HUD.S routines.  Pixel/Blitter/GPU work
  * is routed through AvpRuntimeOps; game-side state remains visible here. */
 void TracTest(void); void HUD_human(void); void TC(void); void HP2(void); void UpdtHUD(void);
-void InitNrg(void); void UpdtNrg(void); void extract_cocoon(void); void DrawCocoon(void);
+void InitNrg(void); void UpdtNrg(void); void extract_cocoon(u32 packed,AvpCocoonState *out); void DrawCocoon(void);
 void ShowPos(void); void xDecPrint(void); void DecPrint(void); void DecCommon(void); void HexPrint(void);
 void InitHUDPal(void); void SetHUDPal(void); void ZeroHUDBright(void); void SetHUDBright(void); void HUDBright(void);
 void InitMap(void); void UpdtMap(void); void ShowMap(void); void wmasks(void); void dmasks(void);

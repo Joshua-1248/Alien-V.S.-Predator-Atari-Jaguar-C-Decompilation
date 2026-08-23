@@ -112,11 +112,11 @@ void place_grid(void)
     /* MAZE_DATA cells are 8 bytes.  The placement grid is fixed 64x64; cells
      * with a floor start viable (0), absent/outside cells are banned (-1). */
     for(unsigned y=0;y<AVP_AMP_GRID_H;y++)for(unsigned x=0;x<AVP_AMP_GRID_W;x++){
-        if(x<(unsigned)w+2u&&y<(unsigned)h+2u){u8 *c=maze+((size_t)y*((size_t)w+2u)+x)*8u;collmap[y*64u+x]=c[4]?0u:0xffffu;}
+        if(x<(unsigned)w&&y<(unsigned)h){u8 *c=maze+((size_t)y*(size_t)w+x)*8u;collmap[y*64u+x]=c[4]?0u:0xffffu;}
     }
     /* Propagate failure through open edges until stable, matching the repeated
      * third stage in place_grid. Wall bytes 0..3 are L/T/R/B. */
-    int changed;do{changed=0;for(unsigned y=1;y<63;y++)for(unsigned x=1;x<63;x++){unsigned i=y*64u+x;if(collmap[i])continue;u8*c=maze+((size_t)y*((size_t)w+2u)+x)*8u;if((!c[0]&&collmap[i-1])||(!c[1]&&collmap[i-64])||(!c[2]&&collmap[i+1])||(!c[3]&&collmap[i+64])){collmap[i]=0xffffu;changed=1;}}}while(changed);
+    int changed;do{changed=0;for(unsigned y=1;y<63;y++)for(unsigned x=1;x<63;x++){unsigned i=y*64u+x;if(collmap[i])continue;u8*c=maze+((size_t)y*(size_t)w+x)*8u;if((!c[0]&&collmap[i-1])||(!c[1]&&collmap[i-64])||(!c[2]&&collmap[i+1])||(!c[3]&&collmap[i+64])){collmap[i]=0xffffu;changed=1;}}}while(changed);
 }
 void xMap(void){/* TEST_PLACE-only diagnostic visualizer; excluded from retail behavior. */}
 void swapper(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->file_event)o->file_event(o->user,0x53574150u,(u32)(u16)cur_level,0,0);}
