@@ -1,7 +1,7 @@
-# RE #6 fourth-pass pre-final notice
+# RE #6 working pre-final notice
 
 **This tree is not final.**
 
-Earlier RE #6 packages closed a list of known exported/routine-level gaps and passed all mechanical validation gates. A fourth source-to-C semantic audit demonstrated that this criterion was still too coarse: important retail logic lives in active local labels, fallthrough blocks, and CPU-side orchestration that can be absent even when exported routine names exist and the static library links.
+It includes verified post-fourth-pass corrections and passes the existing GCC/Clang/tests/link/payload gates, but active source-block/control-flow closure is still in progress. Do not tag this snapshot as the final 100% readable-C release.
 
-The prior final-completion wording is withdrawn. See `STATUS.md` and `docs/RE6_FOURTH_PASS_AUDIT.md`.
+See `STATUS.md` and `docs/RE6_WORKING_FIXES_M2.md`.

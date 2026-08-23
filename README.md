@@ -1,3 +1,6 @@
+> **FOURTH-PASS AUDIT NOTICE (2026-08-23):** The prior final routine-audit claim is withdrawn. A fresh source-to-C semantic audit found substantive active CPU/game-state logic not represented by the current C tree. Treat this archive as a **NOT FINAL audit checkpoint**. See `STATUS.md` and `docs/RE6_FOURTH_PASS_AUDIT.md`.
+
+
 # Alien vs Predator (Atari Jaguar) — C Decompilation
 
 Readable high-level C reconstruction of the ordinary Motorola 68000 portion of **Alien vs Predator** for the Atari Jaguar.
@@ -9,7 +12,7 @@ This repository is intentionally separate from the byte-exact preservation repos
 
 ## Status
 
-The active ordinary-68000 shipping program now has a readable C/H representation across startup, Jaguar support, files/resources, Object Processor orchestration, audio control, maze/gameplay, player movement, collision interfaces, doors, HUD, weapons, AMP/creature state, progression/computer logic, EEPROM/save support, and the reconstructed MJP/front-end block.
+The repository contains a broad readable C/H reconstruction across startup, Jaguar support, files/resources, Object Processor orchestration, audio control, maze/gameplay, player movement, collision interfaces, doors, HUD, weapons, AMP/creature state, progression/computer logic, EEPROM/save support, and the reconstructed MJP/front-end block. A post-routine source-block audit is still in progress and has found additional semantic gaps; see `STATUS.md`.
 
 This is **not** a claim that every original 1994 source line, comment, macro, variable name or compiler decision has been recovered. Where historical source does not survive (notably reconstructed MJP/OBJECTS/support modules), the C is a readable semantic reconstruction verified against the preservation project. Jaguar GPU/DSP programs are separate processor domains and intentionally remain outside the 68000-to-C denominator.
 

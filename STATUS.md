@@ -1,36 +1,38 @@
-# Status — RE #6 fourth-pass semantic audit checkpoint (NOT FINAL)
+# Status — RE #6 working semantic-fix snapshot (NOT FINAL)
 
 ## Verdict
 
-The ordinary Motorola 68000 program remains 100% semantically/source represented in the separate preservation reconstruction (84,142 / 84,142 ordinary-68000 bytes, 0 source-level unresolved bytes), but this portable readable C/H tree **does not yet have 100% source-guided high-level closure**.
+The separate preservation reconstruction still provides the 100% ordinary-68000 semantic/source oracle (84,142 / 84,142 bytes). This portable readable C/H tree is **still under active source-block/control-flow audit** and must not yet be tagged as the final 100% readable-C release.
 
-A fourth audit, performed from the previously labelled `RE6_ThirdPass_Corrected` archive and compared again with the surviving September 1994 assembly, found substantive CPU/game-state logic that was collapsed into callbacks, abbreviated compatibility surfaces, or omitted local-label continuations. Therefore the prior "final" / "100% readable C/H closure" wording is withdrawn.
+This working snapshot contains verified corrections discovered after the fourth-pass audit and is suitable for updating the GitHub working branch.
 
-## Confirmed semantic blockers
+## Corrections applied in this snapshot
 
-The fourth pass has confirmed at least these blockers:
+- Corrected the 68000 `maze_width+2` / `maze_height+2` address-displacement misunderstanding in the translated player/door/level indexing paths. In the assembly these expressions address the low word of 32-bit variables; they do **not** mean mathematical width/height plus two.
+- Corrected `InitAccess`: retail Human/Marine starts at access level 0 while Alien and Predator start at access level 10.
+- Corrected `ResetMaze` to call `hug_init` before map/GPU reset, matching `MAZE.S`.
+- Restored HUD cocoon persistence state `ccn_xsave` / `ccn_ysave`.
+- Restored the three-cocoon packed save-game decode from the two save longs used by `HUD.S`.
+- Corrected restored-cocoon redraw semantics: a negative cocoon timer forces redraw of the current frame without advancing it.
+- Corrected `UseCocoon` shifting/reset behavior: the two younger cocoon records shift toward the oldest slot and only the first slot's frame word is reset to `COCOON_EMPTY`, as in the assembly.
+- `UseCocoon` now records the destination position in `ccn_xsave` / `ccn_ysave` for the AMP first-visit carry-over path.
 
-- `AMP/AMP.S`: `initialise` omits the historical 16-byte `init_invent` -> `inventory_table` initialization.
-- `AMP/AMP.S`: `build_level` currently stops after free-list setup, but the source continues through player-type selection, visited-level marking, `level_loop`, and initial creature population.
-- `AMP/AMP.S`: `restore_level` omits first-visit versus revisit control flow, `place_grid`, `append_objs`, cocoon restoration, random population, `rebuild_level`, and special level 14/15 Queen/Predator setup.
-- `AMP/AMP.S`: active local routines/continuations such as `rebuild_level`, `ram_save`, `xcocoons`, and `rand_set` are not yet represented explicitly enough for source-equivalent C closure.
-- `MAZE/HUD.S`: cocoon save restoration is incomplete: `ccn_xsave`/`ccn_ysave`, packed save extraction, and the `UseCocoon` carry-over into an unvisited destination level are missing.
-- `AMP/FONT.S`: encoded-string parsing, proportional font metrics, control bytes, wrapping, controller/typewriter behavior, and cursor timing are not preserved by the current minimal host text wrapper.
-- `MAZE/COMPUTER.S`: terminal input semantics and dispatcher/game-state logic are substantially abbreviated. In particular, source `c_readpad` repeat behavior and active-low -> active-high inversion do not match the current C implementation.
-- `MAIN/MAIN.S`: the persistent title/game/post-game sequencing and `PlayAvP` orchestration are not represented by the current compact `main_game.c` surface.
-- `MAZE/MAZE.S`: `ResetMaze` omits the source call to `hug_init`.
+## Still open before a 100% proper claim
 
-See `docs/RE6_FOURTH_PASS_AUDIT.md` for the audit detail and corrected closure criterion.
+The source-block audit is continuing. Confirmed areas that still require completion or exact re-verification include:
 
-## Mechanical validation
+- AMP level lifecycle and first-visit/revisit population/save-restore paths (`build_level`, `restore_level`, `rebuild_level`, `ram_save`, `xcocoons`, `rand_set`, and related local continuations).
+- The AMP consumer of `ccn_xsave` / `ccn_ysave` for first visits to a destination level.
+- Source-exact `COLLIDE.S` wall scanning / `FireDistance` / line-of-sight behavior.
+- Full `FONT.S` encoded/proportional text engine semantics.
+- Full `COMPUTER.S` terminal input/dispatch/state-machine semantics.
+- Full `MAIN.S` title -> gameplay -> post-game orchestration.
+- Remaining local-label/fallthrough/state-table closure across the rest of the active shipping 68000 source and reconstructed-source modules.
 
-The fourth-pass source tree still passes the existing mechanical gates (strict optimized GCC/Clang builds, regression tests, whole-archive links, unfinished-marker scan used by the existing validator, and public/restricted-payload audit). Those results remain useful, but they are **not evidence of semantic completeness** because omitted source logic can be unreachable from the current C call graph and therefore invisible to link/tests.
+## Mechanical validation of this snapshot
 
-## Correct completion criterion
+Both GCC and Clang strict Release validation pass after the fixes above, including regression tests, whole-archive linking, unfinished-marker scan used by the validator, and the public/restricted-payload audit. These are necessary gates, but are **not** being used as proof of semantic completion.
 
-Do not declare the portable C/H tree complete from exported routine names alone. The next audit must cover active source control-flow blocks, including reachable local labels and fallthrough regions. Every active retail CPU-side block must map to either:
+## Completion criterion
 
-1. explicit readable C semantics; or
-2. a documented hardware/resource/backend boundary with proof that no game-state/control semantics were discarded.
-
-Jaguar GPU/DSP programs remain separate processor domains. The historical source tree, retail ROM/assets, and restricted third-party material remain excluded from public packages.
+A final release requires active source-block/control-flow closure: every reachable ordinary-68000 CPU-side block must map to explicit readable C semantics or a documented hardware/resource/backend boundary that demonstrably discards no gameplay/control semantics. GPU/DSP programs remain separate processor domains.
