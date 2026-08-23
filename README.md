@@ -1,5 +1,3 @@
-> **FINAL ROUTINE-AUDIT STATUS (2026-08-23):** RE #6 completed the strengthened routine-by-routine closure audit that superseded the earlier module-level v1.0.0/v1.0.1 completion wording. See `STATUS.md`, `RELEASE_STATUS.md`, and `docs/ROUTINE_ALIAS_AUDIT.md` for the exact claim boundary and validation record.
-
 # Alien vs Predator (Atari Jaguar) — C Decompilation
 
 Readable high-level C reconstruction of the ordinary Motorola 68000 portion of **Alien vs Predator** for the Atari Jaguar.
