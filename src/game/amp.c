@@ -404,3 +404,124 @@ void chase_player(AvpAmp *a)
     if(invisflag && !(a->flags&(1u<<AMP_PHIT))){a->mode=lostplayer;lostplayer(a);return;}
     if(chase_cb)chase_cb(a,(s32)x_pos,(s32)y_pos);
 }
+
+
+/* -------------------------------------------------------------------------
+ * Routine-level source lifts retained under the historical AMP.S names.
+ * These are deliberately explicit rather than folded into surrounding modes
+ * so the readable-C tree can be audited one historical routine at a time.  */
+
+void QFRAME(AvpAmp *a,u16 frame)
+{
+    if(!a)return;
+    a->animframe=frame;
+}
+
+void do_score(AvpAmp *a)
+{
+    static const s32 score_list[]={
+        10000,50000,5000,300,900,6000,0,0,0,0,0,0,0,0,0,0,0,0,0,0,
+        100,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,200000,50000,0
+    };
+    s32 add;
+    u16 flags,creature;
+
+    if(!a)return;
+    flags=a->flags;
+    if(!(flags&(1u<<AMP_PHIT)))return; /* no killy, no scorey */
+
+    creature=a->creature;
+    if(creature >= (u16)(sizeof(score_list)/sizeof(score_list[0])))return;
+    add=score_list[creature];
+
+    if(player_type==PT_ALIEN){
+        if(creature==AC_HUMAN)add=(s32)((u32)add<<2);
+    }else if(player_type==PT_PREDATOR){
+        if(flags&(1u<<AMP_INVHIT)){
+            add=-add;
+            if(!(flags&(1u<<AMP_CLOSEHIT)))add=(s32)((u32)add<<1);
+        }else if(!(flags&(1u<<AMP_CLOSEHIT))){
+            /* 68000 ASR.L #1: arithmetic divide by two with sign preserved. */
+            add >>= 1;
+        }
+    }
+
+    score += add;
+    if(score<0)score=0;
+}
+
+void amp_setgrid(AvpAmp *a)
+{
+    unsigned x,y,n;
+    if(!a)return;
+
+    /* AMP.S indexes collmap using the integer words of amp_xpos/amp_ypos.
+     * In the host-readable representation those are the upper 16 bits of the
+     * 16.16 positions.  Each cell is a 16-bit AMP number, zero meaning free. */
+    x=(unsigned)((u32)a->xpos>>16);
+    y=(unsigned)((u32)a->ypos>>16);
+    if(x>=AVP_AMP_GRID_W || y>=AVP_AMP_GRID_H)return;
+
+    n=amp_number(a);
+    if(n==0 || n>0xffffu)return;
+    collmap[y*AVP_AMP_GRID_W+x]=(u16)n;
+}
+
+/* -------------------------------------------------------------------------
+ * Final AMP.S routine-closure tranche. Authored placement/template payloads
+ * are bound by the resource layer; this file owns the 68000 control semantics. */
+#include "collision.h"
+#include "levels.h"
+#include "hud.h"
+
+static const AvpAmpPlacement *level_lists[4][AVP_MAX_LEVEL];
+static const AvpAmpTemplate *bound_templates;
+static unsigned bound_template_count;
+static u32 beam_counter;
+static void (*fight_cb)(AvpAmp *,int);
+static void (*death_cb)(AvpAmp *);
+static int (*lift_test_cb)(const AvpAmp *);
+
+void avp_amp_bind_level_list(unsigned k,unsigned level,const AvpAmpPlacement *list){if(k<4&&level>=1&&level<=AVP_MAX_LEVEL)level_lists[k][level-1]=list;}
+void avp_amp_bind_templates(const AvpAmpTemplate *t,unsigned n){bound_templates=t;bound_template_count=n;}
+void avp_amp_set_beam_counter(u32 v){beam_counter=v;}
+void avp_amp_set_fight_callback(void (*fn)(AvpAmp *,int)){fight_cb=fn;}
+void avp_amp_set_death_callback(void (*fn)(AvpAmp *)){death_cb=fn;}
+void avp_amp_set_lift_test_callback(int (*fn)(const AvpAmp *)){lift_test_cb=fn;}
+
+static void amp_cleargrid_c(AvpAmp *a){unsigned x=(u32)a->xpos>>16,y=(u32)a->ypos>>16;if(x<64&&y<64)collmap[y*64+x]=0;}
+static int amp_in_range(const AvpAmp *a,u16 pixels){u32 lim=(u32)pixels<<9;return abs32diff(a->xpos,(s32)x_pos)<=lim&&abs32diff(a->ypos,(s32)y_pos)<=lim;}
+static void set_static(AvpAmp *a){a->mode=NULL;a->host_static=1;}
+static void dead_dispatch(AvpAmp *a){a->energy=0;if(death_cb)death_cb(a);else set_static(a);}
+static void write_obj_grid(AvpAmp *a){unsigned x=(u32)a->xpos>>16,y=(u32)a->ypos>>16,n=amp_number(a);size_t o=y*AVP_AMP_OBJ_ROW_BYTES+x*2u;if(x<64&&y<64&&n&&o+1<sizeof(objmap)){objmap[o]=(u8)(n>>8);objmap[o+1]=(u8)n;}}
+static void make_dead_egg(AvpAmp *a){amp_cleargrid_c(a);a->flags&=(u16)~(1u<<AMP_KILLABLE);a->animframe=5;a->astype=56;set_static(a);do_score(a);}
+
+static void apply_template(AvpAmp *a,const AvpAmpPlacement *p){
+    const AvpAmpTemplate *t;if(!bound_templates||p->def>=bound_template_count){set_static(a);return;}t=&bound_templates[p->def];
+    a->xpos=(s32)((u32)(u16)p->x<<8);a->ypos=(s32)((u32)(u16)p->y<<8);a->mode=t->mode;a->creature=t->creature;
+    a->animseq=t->animseq;a->animframe=t->animframe;a->angle=t->angle;a->timer=t->timer;a->xvel=t->xvel;a->yvel=t->yvel;a->ldir=t->ldir;
+    a->xvector=t->xvector;a->yvector=t->yvector;a->energy=t->energy;a->oldenergy=t->oldenergy;a->flags=(u16)(t->flags|t->flags_or);a->yoffset=t->yoffset;a->astype=(s16)p->def;a->host_static=0;a->aux_ptr=NULL;
+    {unsigned x=(u32)a->xpos>>16,y=(u32)a->ypos>>16;if(x<64&&y<64)collmap[y*64+x]=1;}
+    if(a->creature==AC_HUMAN||a->creature==AC_ALIEN){a->xpos=(s32)(((u32)a->xpos&0xffff0000u)|0x8000u);a->ypos=(s32)(((u32)a->ypos&0xffff0000u)|0x8000u);}
+}
+void next_creature(const AvpAmpPlacement **cursor){const AvpAmpPlacement *p;if(!cursor||!(p=*cursor))return;while(p->x!=-1){AvpAmp*a=amp_req();apply_template(a,p);++p;}*cursor=p;}
+void level_loop(void){const AvpAmpPlacement *p;if(cur_level<1||cur_level>AVP_MAX_LEVEL)return;levels_visit|=(u16)(1u<<((unsigned)cur_level-1u));p=level_lists[AVP_AMP_LIST_COMMON][cur_level-1];next_creature(&p);}
+void append_objs(void){unsigned a,b;const AvpAmpPlacement*p;if(cur_level<1||cur_level>AVP_MAX_LEVEL)return;if(player_type==PT_ALIEN){a=AVP_AMP_LIST_HUMAN;b=AVP_AMP_LIST_PREDATOR;}else if(player_type==PT_PREDATOR){a=AVP_AMP_LIST_ALIEN;b=AVP_AMP_LIST_HUMAN;}else{a=AVP_AMP_LIST_PREDATOR;b=AVP_AMP_LIST_ALIEN;}p=level_lists[a][cur_level-1];next_creature(&p);p=level_lists[b][cur_level-1];next_creature(&p);}
+
+void gofight(AvpAmp *a){AvpXY from,to;if(!a||discflag)return;if(!amp_in_range(a,(128u*9u)/2u)){a->flags&=(u16)~(1u<<AMP_PHIT);return;}if((beam_counter&7u)!=2u)return;from.x=a->xpos;from.y=a->ypos;to.x=(s32)x_pos;to.y=(s32)y_pos;if(LineOfSight(&from,&to)){a->flags&=(u16)~(1u<<AMP_PHIT);return;}a->animframe=0;if(beam_counter&1u){a->animseq=AS_FIGHT2;if(fight_cb)fight_cb(a,AVP_AMP_FIGHT_FLAME);}else{a->animseq=AS_FIGHT1;if(fight_cb)fight_cb(a,AVP_AMP_FIGHT_CROUCH);}}
+
+void stun_mode(AvpAmp *a){if(!a)return;if(a->timer==0){a->animseq=AS_RUN;a->animframe=0;a->mode=chase_player;a->flags&=(u16)~(1u<<AMP_STUN);return;}--a->timer;if(!(a->flags&(1u<<AMP_STUN))){dead_dispatch(a);return;}if(a->energy>0)return;if(use_cocoon||(lift_test_cb&&lift_test_cb(a))){dead_dispatch(a);return;}amp_cleargrid_c(a);a->mode=stun_death;a->timer=50;a->animseq=AS_DEATH;a->animframe=0;}
+void stun_death(AvpAmp *a){const AvpRuntimeOps*o=avp_runtime_ops();if(!a)return;if(a->animframe!=2){++a->animframe;return;}if(--a->timer==0){set_static(a);return;}if(!amp_in_range(a,20))return;if(num_cocoons>=AVP_MAX_COCOONS){set_static(a);a->flags=(1u<<AMP_DEAD);return;}set_static(a);a->creature=AC_COCOON;a->animseq=AS_STAND;a->animframe=0;a->astype=18;a->flags=0;MakeCocoon((u32)a->xpos,(u32)a->ypos);if(o->play_sfx)o->play_sfx(o->user,27);}
+void cocoon(AvpAmp *a){if(!a)return;if((u16)(a->xpos>>16)!=(u16)(x_pos>>16)||(u16)(a->ypos>>16)!=(u16)(y_pos>>16)){write_obj_grid(a);set_static(a);return;}a->xpos=(s32)(((u32)a->xpos&0xffff0000u)|0x8000u);a->ypos=(s32)(((u32)a->ypos&0xffff0000u)|0x8000u);a->creature=AC_EGG;make_dead_egg(a);}
+
+static void wait_hug_mode(AvpAmp *a);
+static void egg_open2_mode(AvpAmp *a){if(a->energy<=0){a->energy=0;make_dead_egg(a);return;}if(++a->animframe==4){a->mode=wait_hug_mode;a->timer=0;}}
+static void egg_open_mode(AvpAmp *a){const AvpRuntimeOps*o=avp_runtime_ops();if(o->play_sfx)o->play_sfx(o->user,28);a->mode=egg_open2_mode;egg_open2_mode(a);}
+static void fire_hug_mode(AvpAmp *a){AvpAmp*h;if(!bound_templates||4u>=bound_template_count){set_static(a);return;}h=amp_req();*h=(AvpAmp){0};h->xpos=a->xpos;h->ypos=a->ypos;{AvpAmpPlacement p={(s16)((u32)a->xpos>>8),(s16)((u32)a->ypos>>8),4};apply_template(h,&p);h->xpos=a->xpos;h->ypos=a->ypos;}make_dead_egg(a);}
+static void wait_hug_mode(AvpAmp *a){if(!(a->flags&(1u<<AMP_EGGOPEN))){if(a->energy<=0){a->energy=0;make_dead_egg(a);return;}if((u16)a->timer!=20u){a->timer=(s32)((u16)a->timer+1u);return;}}a->mode=fire_hug_mode;}
+void eggwait(AvpAmp *a){AvpXY from,to;if(!a||player_type==PT_ALIEN)return;a->flags&=(u16)~(1u<<AMP_EGGOPEN);if(a->energy<a->ldir){a->ldir=a->energy;a->flags|=(1u<<AMP_EGGOPEN);}else{amp_setgrid(a);if(a->energy<=0){a->energy=0;make_dead_egg(a);return;}if(!amp_in_range(a,128))return;}from.x=a->xpos;from.y=a->ypos;to.x=(s32)x_pos;to.y=(s32)y_pos;if(LineOfSight(&from,&to))return;a->mode=egg_open_mode;}
+
+static void queen_delay_mode(AvpAmp *a){if(--a->timer==0)lockxxx(a);}
+static void queen_dead_mode(AvpAmp *a){if((a->flags^=(1u<<AMP_ALTFRAME))&(1u<<AMP_ALTFRAME)){if(++a->animframe==3){a->flags&=(u16)~(1u<<AMP_MOTION);a->astype=57;set_static(a);}}}
+static void queen_lock_mode(AvpAmp *a){if(a->energy<0)a->energy=0;if(a->energy==0){a->animseq=AS_DEATH;a->animframe=0;a->mode=queen_dead_mode;return;}if(a->energy<a->oldenergy){a->animseq=AS_KNOCKBACK;a->animframe=0;a->timer=2;a->mode=queen_delay_mode;return;}if(amp_in_range(a,90)){if(fight_cb)fight_cb(a,AVP_AMP_FIGHT_CROUCH);return;}if(chase_cb)chase_cb(a,(s32)x_pos,(s32)y_pos);}
+void lockxxx(AvpAmp *a){if(!a)return;a->mode=queen_lock_mode;a->animframe=0;a->animseq=AS_STAND;a->timer=3;}

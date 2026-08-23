@@ -41,6 +41,9 @@ u32 pain_cols,new_pos,old_pos;
 s16 cheat;
 u8 wep_fire,one_fire,plreset_count;
 u16 fade_c,xtra_c,invisflag;
+u8 invis_act,invis_stat,medpak_act;
+u16 predo,predo_count;
+static u32 predo_ID;
 u32 bg_fx;
 s16 bg_repeat,bg_delay,bg_count,last_bg;
 
@@ -92,7 +95,7 @@ void InitPlayer(void) {
     init_random();
     fade_c=0x8880u; xtra_c=0x8880u;
     bg_fx=0;
-    /* init_predo() state moves to the Predator subsystem translation. */
+    predo_ID=0; invis_act=0; invis_stat=0; medpak_act=0; predo=0; predo_count=0; invisflag=0;
     InitDoors();
     InitHUD();
 
@@ -262,10 +265,45 @@ void MovePlayer(void)
     x_pos=(u32)nx;y_pos=(u32)ny;
 }
 
+/* PLAYER.S Predovision state machine.  Hardware VMODE writes are represented
+ * by xtra_c plus the runtime/backend presentation boundary; gameplay-visible
+ * invisflag and flicker timing remain here. */
+void do_predo(void)
+{
+    static const u16 extra[5]={0x9558u,0x0cf8u,0x8880u,0x26f8u,0x8880u};
+    const AvpRuntimeOps *o=avp_runtime_ops();
+    if(invis_stat==0) return;
+    if(invis_act){
+        if(invis_stat!=2){
+            if(o->play_sfx)o->play_sfx(o->user,60u);
+            predo_ID=1; invis_stat=2; invisflag=(u16)(1u<<AMP_INVHIT); predo_count=3;
+            predo=(u16)((predo+20u-8u)%20u);
+        } else if(predo_count) --predo_count;
+        else { predo_count=2; if(o->play_sfx)o->play_sfx(o->user,60u); predo_ID=1; }
+    } else {
+        if(invis_stat!=1){
+            if(predo_ID && o->play_sfx)o->play_sfx(o->user,60u);
+            predo_ID=0; invis_stat=1; predo_count=3;
+        }
+        if(predo_count) --predo_count;
+        else { invisflag=0; invis_stat=0; xtra_c=0x8880u; return; }
+    }
+    predo=(u16)((predo+4u)%20u);
+    xtra_c=extra[predo/4u];
+}
+
 void PlayerWeapons(void)
 {
     u32 e=joy_edge,c=joy_cur;
     wep_fire=one_fire=0;
+    if(player_type==PT_PREDATOR){
+        if(pressed(e,OPTION)) invis_act=(u8)~invis_act;
+        medpak_act=0;
+        /* Retail `test_key medpak,d5`: held medpak control.  The reconstructed
+         * input map uses KEY_7 for this otherwise platform-defined action. */
+        if(pressed(c,KEY_7)) medpak_act=(u8)~medpak_act;
+        do_predo();
+    }
     if(player_type==PT_ALIEN){
         new_wepno=2;
         if(pressed(c,FIRE_A)){new_wepno=2;wep_fire=0xff;}
@@ -274,13 +312,7 @@ void PlayerWeapons(void)
         return;
     }
     if(pressed(c,FIRE_A)){wep_fire=0xff;if(pressed(e,FIRE_A))one_fire=0xff;}
-    /* 1..4 select the first four weapons. */
     { const unsigned bits[4]={KEY_1,KEY_2,KEY_3,KEY_4}; int pick=0; for(int i=0;i<4;i++)if(pressed(e,bits[i]))pick=i+1; if(pick&&(cur_weps&(1u<<pick)))new_wepno=(s16)pick; }
-    if(player_type==PT_PREDATOR){
-        /* The detailed predovision/invisibility transition is executed by the
-         * first-person command stream; retain source-facing Option toggle. */
-        if(pressed(e,OPTION)) invisflag^=(1u<<AMP_INVHIT);
-    }
 }
 
 void MapKeys(void){ if(pressed(joy_edge,KEY_8)) map_on^=0xffu; }
@@ -321,6 +353,36 @@ void Pain(void)
         unsigned idx=(unsigned)(((u32)p*16u)/100u);if(idx>15)idx=15;
         if(!destruct_flag)fade_c=pain_lists[player_type==PT_ALIEN?1:player_type==PT_PREDATOR?2:0][idx];
     }
+}
+
+
+/* PLAYER.S TestSpark/shoot_loop: source-shaped hitscan against active AMPs.
+ * The Jaguar wall-distance helper is exposed through AvpRuntimeOps; if a host
+ * backend does not provide it, the weapon's authored maximum distance is used. */
+AvpAmp *TestSpark(void)
+{
+    const AvpRuntimeOps *o=avp_runtime_ops();
+    AvpAmp *best=NULL;
+    s64 best_z=INT64_MAX;
+    u16 ang;
+    s32 ca,sa;
+    u32 maxdist=fire_distance,wall=0;
+    if(!wep_fire)return NULL;
+    ang=(u16)(centre_angle>>16);
+    ca=cos_d0(ang);sa=-sin_d0(ang);
+    if(o->fire_distance && o->fire_distance(o->user,(s32)x_pos,(s32)y_pos,ang,&wall) && wall)maxdist=wall;
+    for(unsigned i=0;i<AVP_NUM_AMPS;i++){
+        AvpAmp *a=&amps_at[i];s64 dx,dy,z,xoff;u32 width;
+        if((!a->mode&&!a->host_static)||!(a->flags&(1u<<AMP_KILLABLE)))continue;
+        dx=(s64)a->xpos-(s32)x_pos;dy=(s64)a->ypos-(s32)y_pos;
+        z=(dx*ca+dy*sa)>>14; if(z<0 || (u64)z>(u64)maxdist)continue;
+        xoff=(dx*sa-dy*ca)>>14;if(xoff<0)xoff=-xoff;
+        width=(u32)fire_width<<9;if((u64)xoff>(u64)width)continue;
+        if(z<best_z){best_z=z;best=a;}
+    }
+    if(best){best->energy=(s16)(best->energy-fire_damage);best->flags|=(u16)((1u<<AMP_PHIT)|(1u<<AMP_CLOSEHIT)|invisflag);if(player_type==PT_HUMAN)make_spark_at(best->xpos,best->ypos,0);return best;}
+    if(player_type==PT_HUMAN && wall){s32 sx=(s32)(((s64)ca*(s64)wall)>>14),sy=(s32)(((s64)sa*(s64)wall)>>14);make_spark_at((s32)x_pos+sx,(s32)y_pos+sy,0);}
+    return NULL;
 }
 
 void TidyMove(void) {

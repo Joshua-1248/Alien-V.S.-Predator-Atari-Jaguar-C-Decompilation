@@ -1,10 +1,17 @@
 #include "levels.h"
 #include "doors.h"
 #include "player.h"
+#include "amp.h"
 #include <assert.h>
 #include <string.h>
 u32 x_pos,y_pos,centre_angle; s16 player_type; u32 savegame;
 volatile u32 joy_cur=0xffffffffu,joy_edge=0xffffffffu;
+AvpAmp level1amps[AVP_NUM_AMPS]; AvpAmp *amps_at=level1amps,*amp_data=level1amps;
+u16 collmap[AVP_AMP_GRID_W*AVP_AMP_GRID_H];
+u8 *avp_collision_maze_data(void){return 0;}
+u16 avp_collision_maze_width(void){return 0;}
+u16 avp_collision_maze_height(void){return 0;}
+
 void save_level(void){}; 
 int main(void){
  AvpLevelInfo lv[15]; u8 maze[4*4*8]; unsigned i;

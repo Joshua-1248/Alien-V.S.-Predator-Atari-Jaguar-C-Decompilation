@@ -1,6 +1,12 @@
 #include "amp.h"
 #include "player.h"
 #include <assert.h>
+
+#include "collision.h"
+s16 cur_level=1,num_cocoons;
+void MakeCocoon(u32 x,u32 y){(void)x;(void)y;}
+int LineOfSight(const AvpXY *from,const AvpXY *to){(void)from;(void)to;return 0;}
+s32 score;
 u32 x_pos=0x120000,y_pos=0x340000;u16 invisflag=0x0800; volatile u16 seed0=1,seed1=2; s16 player_energy,player_type,use_cocoon;
 s32 sin_d0(u16 a){(void)a;return 0;} s32 cos_d0(u16 a){(void)a;return 0x4000;}
 u16 avp_random(void){u16 r=seed0;seed0=(u16)(seed0+1);return r;}

@@ -11,6 +11,9 @@ u16 Angle(const AvpXY *from,const AvpXY *to);
 void Vector(const AvpXY *from,const AvpXY *to,s32 *vx,s32 *vy);
 
 void avp_collision_bind_maze(u8 *maze,u16 width,u16 height);
+u8 *avp_collision_maze_data(void);
+u16 avp_collision_maze_width(void);
+u16 avp_collision_maze_height(void);
 u8 SafePos(u8 height,s32 xpos,s32 ypos,u16 width);
 u8 AllowedMoves(u16 x,u16 y);
 u16 NMoves(u16 x,u16 y,u8 dir,u16 wanted);

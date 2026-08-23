@@ -12,11 +12,19 @@ volatile u16 min_frame_ticks, video_mul_a, video_mul_b;
 extern void InitPal(void), InitObjL(void), InitInts(void), BuildPre(void);
 static void VideoHelper_91A2(void){ /* byte-exact Jaguar helper is platform-specific; SetScreen ordering remains here. */ }
 
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((noinline))
+#endif
+void avp_jaguar_write_lowmem32(uintptr_t address, u32 value) {
+    *(volatile u32 *)address = value;
+}
+
 void InitJaguar(void) {
     AVP_MMIO32(0x00007F80u)=0;
     AVP_MMIO32(GPU_END)=0x00070007u; AVP_MMIO32(DSP_END)=0x00070007u;
     WaitBlit(); AVP_MMIO32(A1_CLIP)=0;
-    AVP_MMIO32(0x00000000u)=0; AVP_MMIO32(0x00000004u)=4;
+    avp_jaguar_write_lowmem32(0x00000000u,0);
+    avp_jaguar_write_lowmem32(0x00000004u,4);
     AVP_MMIO32(JAG_OLP)=0; jaguar_initial_ptr=0x00009020u;
     AVP_MMIO16(JAG_INT1)=0;
     AVP_MMIO32(GPU_CTRL)=8; AVP_MMIO32(GPU_FLAGS)=0;

@@ -16,6 +16,14 @@ void InitLevels(void);
 void LeaveLevel(void);
 void SetStart(void);
 void FirstPos(void);
+void KillBastards(void);
+void place_grid(void);
+void xMap(void);
+void swapper(void);
+void ScreenOff(void);
+void do_notice(void);
+void add_over(void);
+void FixAlien(void);
 
 void avp_levels_set_table(const AvpLevelInfo *table, unsigned count);
 void avp_levels_set_save_words(const u8 *save_bytes, unsigned size);

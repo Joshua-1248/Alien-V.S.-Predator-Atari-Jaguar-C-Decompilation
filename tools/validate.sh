@@ -3,11 +3,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD="$ROOT/build-validate"
 rm -rf "$BUILD"
-cmake -S "$ROOT" -B "$BUILD" -DAVP_STRICT=ON
+cmake -S "$ROOT" -B "$BUILD" -DAVP_STRICT=ON -DCMAKE_BUILD_TYPE=Release
 cmake --build "$BUILD" -j2
 "$ROOT/tests/run_tests.sh"
 printf 'int main(void){return 0;}\n' > /tmp/avp_c_empty_main.c
 "${CC:-cc}" /tmp/avp_c_empty_main.c -Wl,--whole-archive "$BUILD/libavp_c.a" -Wl,--no-whole-archive -o /tmp/avp_c_whole_archive
+"${CC:-cc}" /tmp/avp_c_empty_main.c -Wl,--whole-archive "$BUILD/libavp_rom_util.a" "$BUILD/libavp_rom_bootstrap.a" -Wl,--no-whole-archive -o /tmp/avp_rom_whole_archive
 # Shipping C/H must not contain unfinished implementation markers.  Research
 # notes may discuss historical placeholders, so scan only active source/include.
 if grep -RniE 'TODO|FIXME|placeholder until|stub[[:space:]]*(implementation|routine)|queued for' "$ROOT/src" "$ROOT/include"; then

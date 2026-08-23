@@ -1,5 +1,11 @@
 #include "amp.h"
 #include <assert.h>
+
+#include "collision.h"
+s16 cur_level=1,num_cocoons;
+void MakeCocoon(u32 x,u32 y){(void)x;(void)y;}
+int LineOfSight(const AvpXY *from,const AvpXY *to){(void)from;(void)to;return 0;}
+s32 score;
 u32 x_pos,y_pos;u16 invisflag; s16 player_energy,player_type,use_cocoon;
 u16 avp_random(void){return 0;} s32 sin_d0(u16 a){(void)a;return 0;} s32 cos_d0(u16 a){(void)a;return 0x4000;}
 static void dummy(AvpAmp*a){(void)a;}

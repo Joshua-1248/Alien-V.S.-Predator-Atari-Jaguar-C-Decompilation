@@ -19,6 +19,8 @@ extern u32 pain_cols;
 extern u32 new_pos, old_pos;
 extern u8 wep_fire, one_fire, plreset_count;
 extern u16 fade_c, xtra_c, invisflag;
+extern u8 invis_act, invis_stat, medpak_act;
+extern u16 predo, predo_count;
 extern u32 bg_fx;
 extern s16 bg_repeat, bg_delay, bg_count, last_bg;
 
@@ -36,6 +38,7 @@ void InitMove(void);
 void MovePlayer(void);
 void TidyMove(void);
 void PlayerWeapons(void);
+void do_predo(void);
 void MapKeys(void);
 void ChangeLevel(void);
 void ExtraKeys(void);

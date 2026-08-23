@@ -5,7 +5,9 @@ This matrix tracks the **active shipping program**, not every archived/SAFE/OLD/
 | Shipping domain / historical module | Readable C target | Status / boundary |
 |---|---|---|
 | `MAIN/MAIN.S` startup/control | `src/game/main_game.c` | represented; fixed-address hardware work is backend-owned |
-| `MAIN/ROM.S`, allocator/inflate bootstrap | `src/unzip/*` | represented as separate historical-ABI libraries |
+| `MAIN/ROM.S` | `src/unzip/rom_bootstrap.c` | bootstrap orchestration represented; fixed ROM/RAM layout and transfer-of-control are backend/configuration seams |
+| `UNZIP/alloc.o`, `inflate.o` | `src/unzip/alloc_reconstructed.c`, `inflate_reconstructed.c` | represented as separate historical-ABI libraries |
+| `UNZIP/util.o` | `src/unzip/util_reconstructed.c` | represented: fatal/memzero/message/GPU glue and compiler arithmetic helper semantics; register-level GPU/Blitter implementation is backend-owned |
 | `JAGUAR/jaguar.o` | `src/platform/jaguar/jaguar.c` | represented; MMIO remains Jaguar-specific |
 | `JAGUAR/blitter.o` | `src/platform/jaguar/blitter.c` | represented |
 | `JAGUAR/joypad.o` | `src/platform/jaguar/joypad.c` | represented |
@@ -25,7 +27,7 @@ This matrix tracks the **active shipping program**, not every archived/SAFE/OLD/
 | `MAZE/HUD.S` | `src/game/hud.c`, `hud_score.c` | represented: HUD state, countdown, map/cocoon state, score/access state; drawing is backend-owned |
 | `MAZE/HUD_MSG.S` | `src/game/hud_message.c` | represented |
 | `MAZE/COMPUTER.S` | `src/game/computer.c` | control/input/display orchestration represented; terminal page corpus is ROM data |
-| `MAZE/AVPCART.S` / EEPROM | `src/game/eeprom.c` | represented |
+| `MAZE/AVPCART.S` / EEPROM | `src/game/eeprom.c` | represented; `eeprim.o` electrical/MMIO primitive is an explicit hardware backend |
 | `AMP/AMP.S` | `src/game/amp.c` | represented: allocation/lifecycle, creature/projectile/generator/shield/queen state and runtime hooks |
 | `AMP/FONT.S` | `src/game/font.c` | represented; glyph pixels are resource data |
 | `MJP` front-end block | `src/game/mjp.c` | semantic reconstruction of named retail routine surface; graphics/object payloads are external |

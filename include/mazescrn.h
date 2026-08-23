@@ -57,10 +57,18 @@ void RestoreMazeList(void);
 void SetMazeList(void);
 void ScreenOff(void);
 void DoPause(void);
+void MazeList(void);
+void LoseSounds(void);
+void RestoreSounds(void);
+void pause_off(void);
+void ExpandOvers(void);
 void SwapScreens(void);
 void PreFrame(void);
 void PostFrame(void);
 void InitPXFades(void);
+void PXFades(void);
+void set_avail(void);
+void fade_selects(void);
 void InitSwing(void);
 void SwingPos(void);
 void Init1stOvers(void);
@@ -95,5 +103,7 @@ extern s32 wep_x,wep_y,wep_xvel,wep_yvel;
 extern s16 swing_x,swing_y,swing_max;
 extern u8 swing_on,wait_state,wep_desel;
 extern s16 hugkill,hug_recov,hug_throw,unstick_dir;
+extern s16 invis_bright,medpak_bright,inwep_bright,outwep_bright;
+extern s16 inwep_no,outwep_no,remove_wepno;
 
 #endif

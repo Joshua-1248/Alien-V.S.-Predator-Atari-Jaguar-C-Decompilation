@@ -93,4 +93,35 @@ void shield2(AvpAmp *amp);
 void genmode(AvpAmp *amp);
 void exp_handle(AvpAmp *amp);
 
+/* Explicit routine-level lifts retained under their historical names. */
+void QFRAME(AvpAmp *amp, u16 frame);
+void do_score(AvpAmp *amp);
+void amp_setgrid(AvpAmp *amp);
+
+
+typedef struct AvpAmpPlacement { s16 x,y; u16 def; } AvpAmpPlacement;
+typedef struct AvpAmpTemplate {
+    AvpAmpModeFn mode; u16 creature,flags_or;
+    u16 animseq,animframe,angle; s32 timer; s16 xvel,yvel,ldir;
+    s32 xvector,yvector; s16 energy,oldenergy; u16 flags; s16 yoffset;
+} AvpAmpTemplate;
+
+enum AvpAmpLevelList { AVP_AMP_LIST_HUMAN=0, AVP_AMP_LIST_PREDATOR=1, AVP_AMP_LIST_ALIEN=2, AVP_AMP_LIST_COMMON=3 };
+enum AvpAmpFightAction { AVP_AMP_FIGHT_NONE=0, AVP_AMP_FIGHT_FLAME=1, AVP_AMP_FIGHT_CROUCH=2 };
+void avp_amp_bind_level_list(unsigned list_kind,unsigned level_1based,const AvpAmpPlacement *list);
+void avp_amp_bind_templates(const AvpAmpTemplate *templates,unsigned count);
+void avp_amp_set_beam_counter(u32 value);
+void avp_amp_set_fight_callback(void (*fn)(AvpAmp *,int action));
+void avp_amp_set_death_callback(void (*fn)(AvpAmp *));
+void avp_amp_set_lift_test_callback(int (*fn)(const AvpAmp *));
+void level_loop(void);
+void next_creature(const AvpAmpPlacement **cursor);
+void append_objs(void);
+void gofight(AvpAmp *amp);
+void stun_mode(AvpAmp *amp);
+void stun_death(AvpAmp *amp);
+void cocoon(AvpAmp *amp);
+void eggwait(AvpAmp *amp);
+void lockxxx(AvpAmp *amp);
+
 #endif

@@ -22,6 +22,10 @@ s32 wep_x,wep_y,wep_xvel,wep_yvel;
 s16 swing_x,swing_y,swing_max;
 u8 swing_on,wait_state,wep_desel;
 s16 hugkill,hug_recov,hug_throw,unstick_dir;
+s16 invis_bright,medpak_bright,inwep_bright,outwep_bright;
+s16 inwep_no,outwep_no,remove_wepno;
+static u8 mpak_maxed,mpak_time,mpak_state;
+static u32 medpak_ID;
 
 static void *screen_a,*screen_b; static size_t screen_bytes;
 static int screen_flip;
@@ -104,9 +108,9 @@ static const AvpWepCmd disk_act[]={C0(AVP_WC_SHOW_OVER),C1(AVP_WC_SET_TIME,1),EF
 static const AvpWepCmd punch_f0[]={C1(AVP_WC_SET_OVER,OV_PUNCH1),C0(AVP_WC_HIDE_OVER),EA};
 static const AvpWepCmd punch_act[]={C0(AVP_WC_SHOW_OVER),C1(AVP_WC_SET_TIME,1),EF,C1(AVP_WC_SOUND,SFX_WRBLADE),C0(AVP_WC_FIRE),C1(AVP_WC_SET_OVER,OV_PUNCH2),C1(AVP_WC_SET_TIME,3),EF,
  C1(AVP_WC_SET_OVER,OV_PUNCH1),C2(AVP_WC_OFFSET_POS,6,20),C1(AVP_WC_SET_TIME,1),EF,C0(AVP_WC_HIDE_OVER),C1(AVP_WC_SET_TIME,5),EF,EA};
-static const AvpWepCmd invis_act[]={C0(AVP_WC_TOGGLE_INVIS),EF,EA};
+static const AvpWepCmd invis_action[]={C0(AVP_WC_TOGGLE_INVIS),EF,EA};
 /* Source medpak action is also toggle_invis. Preserve it rather than “fixing” it. */
-static const AvpWepCmd medpak_act[]={C0(AVP_WC_TOGGLE_INVIS),EF,EA};
+static const AvpWepCmd medpak_action[]={C0(AVP_WC_TOGGLE_INVIS),EF,EA};
 
 #define DEF(n,dam,dist,w,ia,ma,f0,mi,mo,a0) {n,dam,dist,w,ia,ma,f0,mi,mo,{a0,NULL},1}
 static const AvpWeaponDef human_defs[]={
@@ -123,8 +127,8 @@ static const AvpWeaponDef pred_defs[]={
  DEF("shoulder cannon",0,0,0,200,200,no_frame0,no_action,no_action,laser_act),
  DEF("smart disc",0,0,0,200,200,disk_f0,no_action,no_action,disk_act),
  DEF("wrist blade",30,0x90,20,200,200,punch_f0,no_action,no_action,punch_act),
- DEF("invisibility",0,0,0,0,0xffff,no_frame0,no_action,no_action,invis_act),
- DEF("medpak",0,0,0,0,1000,no_frame0,no_action,no_action,medpak_act)};
+ DEF("invisibility",0,0,0,0,0xffff,no_frame0,no_action,no_action,invis_action),
+ DEF("medpak",0,0,0,0,1000,no_frame0,no_action,no_action,medpak_action)};
 
 const AvpWeaponDef *avp_weapon_def(s16 pt,s16 no){
     if(no<=0) return NULL;
@@ -138,12 +142,90 @@ const AvpWeaponDef *avp_weapon_def(s16 pt,s16 no){
 void InitDblBufs(void){screen_flip=0;build_screen=screen_a;}
 void RestoreMazeList(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->restore_maze_list)o->restore_maze_list(o->user);}
 void SetMazeList(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->set_maze_list)o->set_maze_list(o->user);}
-void ScreenOff(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->screen_off)o->screen_off(o->user);}
 void DoPause(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->pause)o->pause(o->user);}
+void MazeList(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->gpu_draw_screen)o->gpu_draw_screen(o->user);}
+void LoseSounds(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->kill_sounds)o->kill_sounds(o->user);}
+void RestoreSounds(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->ambient)o->ambient(o->user);}
+void pause_off(void){RestoreSounds();const AvpRuntimeOps*o=avp_runtime_ops();if(o->restore_maze_list)o->restore_maze_list(o->user);}
+void ExpandOvers(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->file_event)o->file_event(o->user,0x4f564552u,(u32)(u16)player_type,0,0);}
 void SwapScreens(void){screen_flip^=1;build_screen=screen_flip?screen_b:screen_a;const AvpRuntimeOps*o=avp_runtime_ops();if(o->swap_screens)o->swap_screens(o->user);}
 void PreFrame(void){UpdtScrOverlays();const AvpRuntimeOps*o=avp_runtime_ops();if(o->pre_frame)o->pre_frame(o->user);}
-void PostFrame(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->post_frame)o->post_frame(o->user);}
-void InitPXFades(void){ }
+void PostFrame(void){
+    set_avail(); fade_selects(); if(player_type==PT_PREDATOR)PXFades();
+    const AvpRuntimeOps*o=avp_runtime_ops();if(o->post_frame)o->post_frame(o->user);
+}
+
+#define MAX_FADE 6
+#define FADE_STEP 1
+#define MED_TRANS 10
+#define WEP_MEDPAK 6
+#define MPAK_MARK 6
+#define MPAK_SPACE 3
+
+void InitPXFades(void){
+    invis_bright=0; medpak_bright=0; mpak_maxed=mpak_time=mpak_state=0; medpak_ID=0;
+}
+
+/* Source set_avail/fade_selects game-side state.  Pixel shading and cross-hatch
+ * are presentation-only Blitter operations and remain a renderer responsibility. */
+void set_avail(void){
+    u8 now=cur_weps, changed=(u8)(now^old_weps);
+    if(!changed)return;
+    u8 falling=(u8)(changed & (u8)~now);
+    for(s16 w=1;w<=num_weps;w++){
+        u8 bit=(u8)(1u<<w);
+        if(falling&bit){
+            if(cur_wepno==w && (new_wepno==0 || new_wepno==w))new_wepno=-1;
+            if(inwep_no==w)remove_wepno=w;
+        }
+    }
+    old_weps=now;
+}
+
+void fade_selects(void){
+    if(outwep_bright==0 && inwep_bright>=MAX_FADE){
+        s16 n=new_wepno;
+        if(n<=0)n=cur_wepno;
+        if(n!=inwep_no){
+            if(inwep_no){outwep_no=inwep_no;outwep_bright=inwep_bright;inwep_bright=MAX_FADE;}
+            inwep_no=n;
+            if(inwep_no)inwep_bright=0;
+        }
+    }
+    if(inwep_bright<MAX_FADE)++inwep_bright;
+    if(outwep_bright){
+        --outwep_bright;
+        if(outwep_bright==0){s16 old=outwep_no;outwep_no=0;if(old==remove_wepno)remove_wepno=0;}
+    }
+}
+
+void PXFades(void){
+    const AvpRuntimeOps *o=avp_runtime_ops();
+    if(invis_stat==0){
+        if(invis_act){if(invis_bright<MAX_FADE && ++invis_bright>=MAX_FADE){invis_bright=MAX_FADE;invis_stat=1;}}
+        else if(invis_bright>0)--invis_bright;
+    }
+    s16 charge=medpak;
+    if(!(cur_weps&(1u<<WEP_MEDPAK)) && charge)cur_weps=(u8)(cur_weps|(1u<<WEP_MEDPAK));
+    if(medpak_act){
+        if(!medpak_ID){if(o->play_sfx)o->play_sfx(o->user,61u);medpak_ID=1;}
+        if(charge){
+            s16 transfer=MED_TRANS;if(charge<transfer)transfer=charge;charge=(s16)(charge-transfer);medpak=charge;
+            s32 energy=(s32)player_energy+(s32)transfer*6;int maxed=0;if(energy>=max_energy){energy=max_energy;maxed=1;}player_energy=(s16)energy;
+            if(medpak_bright<MAX_FADE)++medpak_bright;
+            else if(maxed){
+                if(!mpak_maxed){mpak_maxed=0xff;mpak_time=0;mpak_state=0;}
+                if((s8)--mpak_time<0){mpak_state=(u8)~mpak_state;if(mpak_state){mpak_time=MPAK_MARK-1;medpak_bright=MAX_FADE;}else{mpak_time=MPAK_SPACE-1;medpak_bright=0;}}
+            }else if(mpak_maxed){mpak_maxed=0;if(!mpak_state)medpak_bright=MAX_FADE;}
+        }else medpak_act=0;
+    }
+    if(!medpak_act){
+        mpak_maxed=0;
+        if(medpak_bright>0)--medpak_bright;
+        if(medpak_bright==0){medpak_ID=0;if(charge==0)cur_weps=(u8)(cur_weps&~(1u<<WEP_MEDPAK));}
+    }
+}
+
 void InitScrOverlays(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->init_screen_overlays)o->init_screen_overlays(o->user);Init1stOvers();StdHUD();}
 void hug_init(void){hug_recov=0;hug_throw=0;unstick_dir=0;}
 void StdHUD(void){InitHUD();}
@@ -199,7 +281,7 @@ void InitWeps(void){
     for(unsigned i=0;i<n&&i<6;i++){const AvpWeaponDef*d=avp_weapon_def(player_type,(s16)(i+1));AvpAmmoInfo*a=&ammo_info[i];if(player_type==PT_HUMAN || i>=4){a->cur=d->init_or_dec;a->max=d->max_or_inc;a->dec=0;a->inc=0;}else{a->cur=AVP_APAMM_MAX;a->max=AVP_APAMM_MAX;a->dec=d->init_or_dec;a->inc=d->max_or_inc;}a->old=0xffffu;a->rescale=a->max?(u16)(0xffffffffu/a->max):0;}
 }
 void fill_weps(void){for(int i=0;i<num_weps&&i<6;i++)ammo_info[i].cur=ammo_info[i].max;}
-void init_fades(void){ }
+void init_fades(void){outwep_bright=0;inwep_bright=MAX_FADE;inwep_no=0;outwep_no=0;remove_wepno=0;}
 void Init1stOvers(void){InitSwing();InitWeps();if(player_type==PT_PREDATOR){InitPredAvail();InitPXFades();}init_fades();fire_damage=0;new_wepno=player_type==PT_PREDATOR?4:1;cur_wepno=0;cur_def=NULL;wep_low=0;cur_weps=player_type==PT_HUMAN?0:player_type==PT_ALIEN?0x0e:0x30;old_weps=0xff;hugkill=0;hug_recov=0;hug_throw=0;}
 
 static void start_action(void){if(!cur_def||cur_def->action_count==0)return;unsigned a=cur_action++;if(cur_action>=cur_def->action_count)cur_action=0;wep_animptr=cur_def->actions[a];active_wep^=-1;}
@@ -234,7 +316,7 @@ void process_shot(void){
     AvpAmmoInfo *a=&ammo_info[cur_wepno-1];
     u16 charge=a->cur;
     if(player_type==PT_HUMAN&&charge){charge--;if(charge==0&&cheat)charge=a->max;a->cur=charge;}
-    if(fire_damage>0){s16 dam=fire_damage;if(player_type!=PT_HUMAN){u32 d=(u32)charge*(u16)dam;d>>=14;dam=(s16)((d+(u16)dam)>>1);fire_damage=dam;}AvpAmp*hit=shot_cb?shot_cb(dam,fire_distance,fire_width):NULL;if(hit&&player_type==PT_ALIEN&&cur_wepno!=2){if(cur_wepno==1)hit->flags^=(1u<<AMP_STUN);else hit->flags&=(u16)~(1u<<AMP_STUN);}}
+    if(fire_damage>0){s16 dam=fire_damage;if(player_type!=PT_HUMAN){u32 d=(u32)charge*(u16)dam;d>>=14;dam=(s16)((d+(u16)dam)>>1);fire_damage=dam;}AvpAmp*hit=shot_cb?shot_cb(dam,fire_distance,fire_width):TestSpark();if(hit&&player_type==PT_ALIEN&&cur_wepno!=2){if(cur_wepno==1)hit->flags^=(1u<<AMP_STUN);else hit->flags&=(u16)~(1u<<AMP_STUN);}}
     fire_damage=0;
 }
 void recharge(void){if(player_type==PT_HUMAN)return;for(int i=0;i<num_weps&&i<6;i++){AvpAmmoInfo*a=&ammo_info[i];s32 v;if(i==cur_wepno-1&&active_wep)v=(s32)a->cur-a->dec;else v=(s32)a->cur+a->inc;if(v<0)v=0;if(v>a->max)v=a->max;a->cur=(u16)v;}}

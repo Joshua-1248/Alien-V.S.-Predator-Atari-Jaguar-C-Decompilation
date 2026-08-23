@@ -2,6 +2,12 @@
 #define AVP_JAGUAR_HW_H
 #include "avp_types.h"
 
+/* Low-memory vector writes are valid on Jaguar hardware but addresses 0/4 are
+ * diagnosed as null-object accesses by optimizing hosted compilers.  Keep the
+ * historical address/value semantics behind a function boundary so host-side
+ * validation never pretends these are normal C objects. */
+void avp_jaguar_write_lowmem32(uintptr_t address, u32 value);
+
 #define AVP_MMIO8(a)  (*(volatile u8  *)(uintptr_t)(a))
 #define AVP_MMIO16(a) (*(volatile u16 *)(uintptr_t)(a))
 #define AVP_MMIO32(a) (*(volatile u32 *)(uintptr_t)(a))

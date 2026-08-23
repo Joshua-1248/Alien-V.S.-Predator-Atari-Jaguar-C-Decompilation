@@ -36,6 +36,9 @@ void avp_collision_bind_maze(u8 *maze,u16 width,u16 height)
 {
     maze_data=maze; bound_w=width; bound_h=height;
 }
+u8 *avp_collision_maze_data(void){return maze_data;}
+u16 avp_collision_maze_width(void){return bound_w;}
+u16 avp_collision_maze_height(void){return bound_h;}
 
 static u32 abs32s(s32 v) { return v < 0 ? (u32)(-(s64)v) : (u32)v; }
 static void normalize_pair(u32 *x,u32 *y) {
