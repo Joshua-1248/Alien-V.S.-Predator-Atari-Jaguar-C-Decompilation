@@ -21,6 +21,10 @@ The final working tree passes:
 
 The release archive is additionally validated after clean extraction and its SHA-256 manifest is regenerated from the shipping tree.
 
+## RE #6 third-pass correction
+
+A fresh post-release audit found that the first `lockxxx` C lift had collapsed too much of the Alien Queen continuation. The corrected tree restores trigger-driven retreat, qfight timing/frame/damage handling, recoil restart, death/resurrection/end-game continuations, and exact `BCHG` old-bit branch cadence. See `docs/RE6_THIRD_PASS_AUDIT.md`. The earlier `RE6_Final_DoublyAudited` archive is superseded.
+
 ## Claim boundary
 
 "100% readable C/H closure" here means source-guided routine-level semantic representation of the active retail ordinary-68000 program. It does **not** mean literal recovery of every original comment, macro name, local label, or exact historical source formatting, and it does not claim this hosted high-level C tree compiles byte-for-byte to the retail ROM. The separate byte-exact preservation reconstruction remains the binary oracle.
