@@ -18,6 +18,8 @@ s32 sin_ang,cos_ang;
 s32 gpu_sin_ang,gpu_cos_ang;
 u32 gpu_xpos,gpu_ypos,gpu_angle;
 void *gmps_at,*clist_at;
+void *gpu_amps_at,*gpu_gmps_at,*gpu_clist_at;
+static void *initial_gmp_data,*initial_creature_list;
 u16 maze_width,maze_height;
 s16 sprite_rescale=AVP_NORMAL_SCALE,true_width=AVP_NORMAL_WIDTH,centre_offset;
 u32 x_pos,y_pos,centre_angle;
@@ -140,6 +142,12 @@ void ResetMaze(void)
     if(o->ambient)o->ambient(o->user);
 }
 
+void avp_maze_bind_gpu_lists(void *gmp_data_ptr,void *creature_list_ptr)
+{
+    initial_gmp_data=gmp_data_ptr;
+    initial_creature_list=creature_list_ptr;
+}
+
 void InitGame(void)
 {
     /* Saved player type occupies the low two bits of the final packed save word. */
@@ -155,6 +163,11 @@ void InitGame(void)
     const AvpRuntimeOps *o=avp_runtime_ops();
     if(o->gpu_init_overlays)o->gpu_init_overlays(o->user);
     InitPlayer();
+    /* MAZE.S explicitly publishes the AMP GPU-data and creature-list bases for
+     * the maze GPU before AMP initialisation.  Their payloads are resource-side
+     * in the portable tree, but the 68000-owned pointer state is preserved. */
+    gmps_at=initial_gmp_data;
+    clist_at=initial_creature_list;
     InitAMPs();
     InitComp();
 }
@@ -171,12 +184,9 @@ void Process_EndGame(void)
             if(o->set_message)o->set_message(o->user,1); /* msg_dead */
             if(o->play_sfx)o->play_sfx(o->user,(unsigned)(player_type==PT_HUMAN?1:player_type==PT_ALIEN?2:3));
             use_cocoon=0;
-            if(player_type==PT_ALIEN){
-                CheckCocoon();
-                if(use_cocoon){
-                    player_dead=0; key_lock=0; end_count=40;
-                    if(o->set_message)o->set_message(o->user,2); /* msg_usecocoon */
-                }
+            if(player_type==PT_ALIEN && CheckCocoon()){
+                player_dead=0; key_lock=0; use_cocoon=-1; end_count=40;
+                if(o->set_message)o->set_message(o->user,2); /* msg_usecocoon */
             }
             return;
         }
@@ -204,6 +214,7 @@ void NextFrame(void)
      * allowed to advance the next simulation frame.  Keep that separation in
      * hosted builds as well; a renderer may read these gpu_* values directly. */
     gpu_xpos=x_pos;gpu_ypos=y_pos;gpu_angle=centre_angle;
+    gpu_amps_at=amps_at;gpu_gmps_at=gmps_at;gpu_clist_at=clist_at;
     sin_ang=sin_d0(ang); cos_ang=cos_d0(ang);
     gpu_sin_ang=sin_ang;gpu_cos_ang=cos_ang;
 

@@ -10,6 +10,10 @@
 #include "hud_message.h"
 #include "avp_runtime.h"
 #include "eeprom.h"
+#include "savegame.h"
+#include "joypad.h"
+#include "objects.h"
+#include "music.h"
 #include <stddef.h>
 #include <string.h>
 
@@ -140,18 +144,223 @@ const AvpWeaponDef *avp_weapon_def(s16 pt,s16 no){
     return NULL;
 }
 
+/* MAZESCRN.S owns ordinary-68000 pause/list control state.  The raw Object
+ * Processor phrases and CLUT transfers remain platform-owned, but every CPU
+ * branch/counter/input decision is retained here. */
+enum {
+    PAUSE_EV_SET_PAUSED_SPRITE=0x50535052u, /* PSPR */
+    PAUSE_EV_LINK_PAUSE_LIST  =0x504c4e4bu, /* PLNK */
+    PAUSE_EV_SAVE_OVERS       =0x5053564fu, /* PSVO */
+    PAUSE_EV_RESTORE_OVERS    =0x5052564fu, /* PRVO */
+    PAUSE_EV_SHOW_MENU        =0x504d454eu, /* PMEN */
+    PAUSE_EV_MENU_CURSOR      =0x50435552u, /* PCUR */
+    PAUSE_EV_HUD_SLIDER       =0x50534c44u, /* PSLD */
+    PAUSE_EV_PULSE_FIX        =0x50504658u  /* PPFX */
+};
+static u32 maze_frames,save_frames;
+static s8 in_pause;
+static u8 trigger,allow_shift;
+static s16 menu_fn;
+static unsigned banana_pos;
+static const s8 bnalist[]={FIRE_B,FIRE_A,KEY_9,FIRE_A,KEY_9,FIRE_A,
+                          KEY_STAR,OPTION,KEY_6,KEY_HASH,KEY_STAR,KEY_STAR,
+                          OPTION,KEY_2,OPTION,-1};
+
+static int key_down(u32 v,unsigned bit){return (v&(1u<<bit))==0u;}
+static void pause_event(unsigned ev,u32 a,u32 b,u32 c){
+    const AvpRuntimeOps *o=avp_runtime_ops();
+    if(o->object_event)o->object_event(o->user,ev,a,b,c);
+}
+static void pause_sfx(unsigned id){const AvpRuntimeOps *o=avp_runtime_ops();if(o->play_sfx)o->play_sfx(o->user,id);}
+static void pause_save_overs(void){pause_event(PAUSE_EV_SAVE_OVERS,0,0,0);VSync();}
+static void pause_restore_overs(void){pause_event(PAUSE_EV_RESTORE_OVERS,0,0,0);}
+static void pause_branch(int enabled){pause_event(PAUSE_EV_LINK_PAUSE_LIST,(u32)(enabled!=0),0,0);}
+static void pause_sprite(int visible){pause_event(PAUSE_EV_SET_PAUSED_SPRITE,(u32)(visible!=0),0,0);}
+
+static int pause_hudbar(void)
+{
+    /* HUDBar: hide B-SAVE, cursor=(26,52), refresh palette twice, slider from
+     * signed hud_bright using the exact hand-tuned integer expression. */
+    s32 v=(s8)hud_bright;
+    u32 slider;
+    pause_event(PAUSE_EV_MENU_CURSOR,26u,52u,0u);
+    HUDBright();VSync();VSync();SetHUDPal();
+    v+=0x88;
+    slider=(u32)(((u32)v*0x9280u)>>16)+110u;
+    pause_event(PAUSE_EV_HUD_SLIDER,slider,0,0);
+    return 1;
+}
+static int pause_save_slot(unsigned slot,u32 edge)
+{
+    static const u16 y[3]={88u,115u,144u}; /* 74/101/130 + 14 */
+    pause_event(PAUSE_EV_MENU_CURSOR,68u,y[slot],1u);
+    if(!key_down(edge,FIRE_B))return 1;
+    SaveGame((s32)slot);
+    return 0;
+}
+static int pause_menu_exec(s16 which,u32 edge)
+{
+    switch(which){
+    case 0:return pause_hudbar();
+    case 1:return pause_save_slot(0,edge);
+    case 2:return pause_save_slot(1,edge);
+    default:return pause_save_slot(2,edge);
+    }
+}
+
 void InitDblBufs(void){screen_flip=0;build_screen=screen_a;}
-void RestoreMazeList(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->restore_maze_list)o->restore_maze_list(o->user);}
-void SetMazeList(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->set_maze_list)o->set_maze_list(o->user);}
-void DoPause(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->pause)o->pause(o->user);}
+void RestoreMazeList(void)
+{
+    /* Retail first blanks OLP/display work, restores the full 32-object
+     * refresh list (32*16 bytes), then reinstalls MazeList.  Phrase copying is
+     * OP-memory work and therefore remains a platform service; the CPU ordering
+     * is explicit here. */
+    VSync();
+    pause_event(0x524d4c30u,0,512u,0); /* RML0: OLP/display quiesce + 512-byte restore */
+    {const AvpRuntimeOps*o=avp_runtime_ops();if(o->restore_maze_list)o->restore_maze_list(o->user);}
+}
+void SetMazeList(void)
+{
+    /* Shipping NUM_OBJS=32, so OL_SIZE=PL_SIZE=512.  Build/resource identity
+     * remains backend-owned; initialization/copy/reset order stays CPU-side. */
+    VSync();
+    pause_event(0x534d4c30u,(u32)(u16)player_type,512u,512u); /* SML0 */
+    in_pause=0;maze_frames=0;
+    fade_rate=0;
+    {const AvpRuntimeOps*o=avp_runtime_ops();if(o->set_maze_list)o->set_maze_list(o->user);}
+}
+
+void LoseSounds(void){avp_pause_audio_save();}
+void RestoreSounds(void){avp_pause_audio_restore();}
+void pause_off(void)
+{
+    in_pause=0;
+    pause_restore_overs();
+    pause_branch(0);
+    RestoreSounds();
+    maze_frames=save_frames;
+}
+
+void DoPause(void)
+{
+    u32 d4,d5;
+    trigger=0;
+    d5=joy_edge;
+    if(!key_down(d5,PAUSE))return;
+
+    save_frames=maze_frames;
+    pause_sprite(0);             /* BRANCH_NEVER: paused sprite enabled by list semantics */
+    in_pause=-1;
+    pause_save_overs();
+    pause_branch(1);
+    LoseSounds();
+
+pause_loop:
+pause1:
+    VSync();readpad();
+    d4=joy_cur & ((1u<<KEY_1)|(1u<<KEY_3));
+    if(d4==0u)goto clear_screen;
+    d5=joy_edge;
+    if(key_down(d5,PAUSE))goto out;
+    if(!key_down(d5,OPTION))goto pause1;
+
+    trigger=1;
+    menu_fn=0;
+    (void)pause_hudbar();
+    pause_event(PAUSE_EV_SHOW_MENU,1,0,0);
+
+pause2:
+    VSync();readpad();
+    d4=joy_cur & ((1u<<KEY_1)|(1u<<KEY_3));
+    if(d4==0u)goto clear_screen;
+    d5=joy_edge;
+    if(key_down(d5,PAUSE))goto out;
+    if(key_down(d5,OPTION)){pause_sprite(0);goto pause_loop;}
+    if(key_down(d5,KEY_6))trigger=4;
+    if(key_down(d5,JOY_UP)){
+        pause_sfx(SFX_COCK);
+        if(--menu_fn<0)menu_fn=3;
+    }
+    if(key_down(d5,JOY_DOWN)){
+        pause_sfx(SFX_COCK);
+        if(++menu_fn>3)menu_fn=0;
+    }
+    if(pause_menu_exec(menu_fn,d5))goto pause2;
+    goto out;
+
+clear_screen:
+    pause_restore_overs();
+    pause_branch(0);
+    /* vf_pulse alternation changes only which OP object is hidden; backend owns
+     * those phrase addresses, while CPU chooses parity here. */
+    pause_event(PAUSE_EV_PULSE_FIX,maze_frames&1u,0,0);
+
+    if(trigger!=4 && trigger!=0){
+        trigger=0;readpad();d5=joy_cur;
+        if(!key_down(d5,PAUSE)){
+            if(key_down(d5,OPTION))trigger=2;
+            else {trigger=1;pause_sfx(SFX_COCK);}
+        }
+    }
+
+pause3:
+    VSync();readpad();d5=joy_edge;
+    if(key_down(d5,PAUSE))goto out;
+    if(trigger>=4)goto banana;
+
+    if(trigger==1 && key_down(d5,OPTION)){
+        show_coords=(u8)~show_coords;
+        pause_sfx(SFX_SHOTGUN);
+        goto out;
+    }
+    if(trigger>=2){
+        u32 cur=joy_cur | 0x80000000u;
+        if(trigger<3){
+            u32 x=~cur & ~((1u<<PAUSE)|(1u<<OPTION)|(1u<<KEY_1)|(1u<<KEY_3));
+            if(x!=0u)trigger=0;
+            else if(cur==~((1u<<PAUSE)|(1u<<OPTION)))trigger=3;
+        }else{
+            const u32 mask=(1u<<PAUSE)|(1u<<OPTION)|(1u<<KEY_2)|(1u<<KEY_5)|(1u<<KEY_7)|(1u<<KEY_9);
+            u32 x=~cur & ~mask;
+            if(x!=0u)trigger=0;
+            else if(cur==~mask){
+                pause_sfx(0x4c414646u); /* LAFF symbolic backend token */
+                allow_shift=0xffu;allow_lcs=0;allow_god=0;cheat=0;
+                goto out;
+            }
+        }
+    }
+    goto pause3;
+
+banana:
+    if(trigger!=5){
+        u32 cur=joy_cur|0x80000000u;
+        u32 x=~cur & ((1u<<PAUSE)|(1u<<OPTION)|(1u<<KEY_1)|(1u<<KEY_3));
+        if(x!=0u)goto pause3;
+        trigger=5;banana_pos=0;goto pause3;
+    }
+    d4=joy_edge|0x80000000u;
+    d4=~d4;
+    if(d4==0u)goto pause3;
+    {
+        unsigned key=(unsigned)(u8)bnalist[banana_pos];
+        d4 &= ~(1u<<key);
+        if(d4!=0u){trigger=0;goto pause3;}
+        ++banana_pos;
+        if(bnalist[banana_pos]>=0)goto pause3;
+        pause_sfx(0x4c414646u); /* LAFF */
+        allow_shift=0xffu;allow_lcs=0xffu;allow_god=0xffu;
+    }
+out:
+    pause_off();
+}
+
 void MazeList(void){
     /* MAZESCRN.S X_FADE block executes in the active display routine. */
     if(fade_rate){s16 n=(s16)(fade_level+fade_rate);fade_level=n;if(n==fade_lim){fade_rate=0;faded=(s8)-1;}}
+    ++maze_frames;
     const AvpRuntimeOps*o=avp_runtime_ops();if(o->gpu_draw_screen)o->gpu_draw_screen(o->user);
 }
-void LoseSounds(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->kill_sounds)o->kill_sounds(o->user);}
-void RestoreSounds(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->ambient)o->ambient(o->user);}
-void pause_off(void){RestoreSounds();const AvpRuntimeOps*o=avp_runtime_ops();if(o->restore_maze_list)o->restore_maze_list(o->user);}
 void ExpandOvers(void){const AvpRuntimeOps*o=avp_runtime_ops();if(o->file_event)o->file_event(o->user,0x4f564552u,(u32)(u16)player_type,0,0);}
 void SwapScreens(void){screen_flip^=1;build_screen=screen_flip?screen_b:screen_a;const AvpRuntimeOps*o=avp_runtime_ops();if(o->swap_screens)o->swap_screens(o->user);}
 void PreFrame(void){UpdtScrOverlays();const AvpRuntimeOps*o=avp_runtime_ops();if(o->pre_frame)o->pre_frame(o->user);}

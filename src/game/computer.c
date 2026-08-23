@@ -163,6 +163,11 @@ int avp_computer_launch_pod(void)
 
 static void scheme(void)
 {
+    /* Retail waits until the low word of the computer-pad state is clear,
+     * clears the text plane, selects the authored map image by cur_level, then
+     * remains until C.  Image lookup itself is resource data. */
+    do{c_readpad();}while((c_joy_cur&0xffffu)!=0u);
+    cls();
     event(0x5343484du,cur_level,0);
     for(;;){VSync();c_readpad();if(pressed(c_joy_edge,FIRE_C))return;cursor();}
 }

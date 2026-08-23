@@ -24,9 +24,10 @@ static const u8 *save_data;
 static unsigned save_size;
 
 s16 cur_level,new_level;
-s32 new_x=-1,new_y;
+s32 new_x,new_y;
 u8 panel_list[AVP_MAX_PANELS];
 u32 panel_pos;
+uintptr_t walls,floors;
 
 extern u32 x_pos,y_pos;
 extern u32 centre_angle;
@@ -54,10 +55,18 @@ void avp_levels_set_save_words(const u8 *bytes,unsigned size)
     save_data=bytes; save_size=size;
 }
 
+static void invalidate_new_x_high_word(void)
+{
+    /* 68000 `move.w #-1,new_x` writes the high word of the big-endian long,
+     * leaving the low word untouched.  Preserve that exact state rather than
+     * replacing the entire long with -1. */
+    new_x=(s32)(0xffff0000u|((u32)new_x&0x0000ffffu));
+}
+
 void FirstPos(void)
 {
     const AvpLevelInfo *li;
-    new_x=-1;
+    invalidate_new_x_high_word();
     if (!level_table || cur_level<1 || (unsigned)cur_level>level_count) return;
     li=&level_table[(unsigned)cur_level-1u];
     x_pos=li->start_x;
@@ -77,7 +86,10 @@ void InitLevels(void)
         if(sv){
         u32 packed=be32(sv+16);
         unsigned saved_level=(packed>>2)&0x0fu;
-        if (saved_level>=1 && saved_level<=AVP_MAX_LEVEL) cur_level=(s16)saved_level;
+        /* Retail accepts the packed four-bit level field verbatim.  Do not
+         * clamp or "validate" it here; EEPROM checksum validity is handled
+         * by the cart/save layer, not LEVELS.S. */
+        cur_level=(s16)saved_level;
         }
     }
     FirstPos();
@@ -96,7 +108,7 @@ void SetStart(void)
     if (new_x>=0) {
         x_pos=(u32)new_x;
         y_pos=(u32)new_y;
-        new_x=-1;
+        invalidate_new_x_high_word();
     } else {
         /* Retail FORCE_START=1: entering without an explicit connection
          * coordinate falls back to that level's safe start. */
@@ -178,13 +190,13 @@ void place_grid(void)
         if(collmap[i]||x>=w||y>=h)continue;
         c=maze+((size_t)y*w+x)*8u;
         if(!c[LEFT]){
-            if(x==0)bad=1;else {u8 *n=maze+((size_t)y*w+x-1u)*8u;if(!n[RIGHT])bad=1;}
+            if(x==0)bad=1;else {u8 *n=maze+((size_t)y*w+x-1u)*8u;if(n[RIGHT])bad=1;}
         }
         if(!bad&&!c[TOP]){
-            if(y==0)bad=1;else {u8 *n=maze+((size_t)(y-1u)*w+x)*8u;if(!n[BOTTOM])bad=1;}
+            if(y==0)bad=1;else {u8 *n=maze+((size_t)(y-1u)*w+x)*8u;if(n[BOTTOM])bad=1;}
         }
         if(!bad&&!c[RIGHT]){
-            if(x+1u>=w)bad=1;else {u8 *n=maze+((size_t)y*w+x+1u)*8u;if(!n[LEFT])bad=1;}
+            if(x+1u>=w)bad=1;else {u8 *n=maze+((size_t)y*w+x+1u)*8u;if(n[LEFT])bad=1;}
         }
         if(!bad&&!c[BOTTOM]){
             if(y+1u>=h)bad=1;else {u8 *n=maze+((size_t)(y+1u)*w+x)*8u;if(n[TOP])bad=1;}
@@ -252,6 +264,47 @@ void ScreenOff(void)
     if(o->screen_off)o->screen_off(o->user);
 }
 
+
+int avp_levels_panel_step(u8 panel_file, int *must_transfer)
+{
+    /* LEVELS.S::itrans: panel_pos is a 16-bit running index.  The sublevel
+     * pseudo-panel ($80) is deliberately never reused/skipped because its
+     * overlay depends on cur_level. */
+    u16 pos=(u16)panel_pos;
+    int transfer=1;
+    panel_pos=(panel_pos&0xffff0000u)|(u16)(pos+1u);
+    if(pos<AVP_MAX_PANELS){
+        if(panel_file!=0x80u && panel_list[pos]==panel_file)transfer=0;
+        if(transfer)panel_list[pos]=panel_file;
+    }
+    if(must_transfer)*must_transfer=transfer;
+    return (int)pos;
+}
+
+void avp_levels_overlay_plan(u8 file,s8 xpos,s8 ypos,u16 width,u16 height,AvpOverlayPlan *out)
+{
+    /* LEVELS.S::add_over ordinary-68000 arithmetic.  JPEG width/height are
+     * resource results supplied by the backend; the resulting pixel/count and
+     * phrase-step values are CPU-owned and reproduced here exactly. */
+    if(!out)return;
+    out->file=file;out->width=width;out->height=height;
+    if(file==0){out->centre_x=out->centre_y=0;out->dest_pixel=out->blit_count=0;out->src_step=out->dst_step=0;return;}
+    s16 x=(s16)xpos+64-(s16)(width>>1);
+    s16 y=(s16)ypos+64-(s16)(height>>1);
+    out->centre_x=x;out->centre_y=y;
+    out->dest_pixel=((u32)(u16)y<<16)|(u16)x;
+    out->blit_count=((u32)height<<16)|width;
+    /* d0 starts as (1<<16)|1; when dest pixel offset is non-zero the low
+     * word gains four before negation.  A1_STEP then adds d2&3. */
+    {
+        s16 low=(s16)(1 + (((u16)x&3u)?4:0));
+        s16 src=(s16)-low;
+        s16 dst=(s16)(src+((u16)x&3u));
+        out->src_step=(s32)(((u32)1u<<16)|(u16)src);
+        out->dst_step=(s32)(((u32)1u<<16)|(u16)dst);
+    }
+}
+
 void do_notice(void)
 {
     /* Remaining authored overlay-resource selection is tracked as an open
@@ -268,6 +321,14 @@ void add_over(void)
      * before this routine can be closed in the RE #7 matrix. */
     const AvpRuntimeOps*o=avp_runtime_ops();
     if(o->file_event)o->file_event(o->user,0x4f564552u,0,0,0);
+}
+
+void FixDucts(void)
+{
+    /* LEVELS.S::FixDucts is ordinary CPU pointer state: air ducts reuse the
+     * wall panel set as their floor panel set.  The pointed-to image data is
+     * resource-owned, but the alias itself belongs in the 68000 C core. */
+    floors=walls;
 }
 
 void FixAlien(void)

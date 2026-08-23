@@ -3,6 +3,7 @@
 #include "jaguar_hw.h"
 #include "blitter.h"
 #include "joypad.h"
+#include "mjp.h"
 
 volatile u32 jaguar_initial_ptr;
 volatile u16 video_vcenter, video_hcenter, screen_half_width, screen_half_height;
@@ -40,6 +41,24 @@ void InitVideo(void) {
     }
     SetScreen(320,228); AVP_MMIO16(JAG_BG)=0; AVP_MMIO32(0x00F0002Au)=0;
     InitPal(); InitObjL(); InitInts(); AVP_MMIO16(JAG_VMODE)=0x06C1u;
+}
+
+void InitMJP(void) {
+    /* Retail $01BE00..$01BEC0.  SetScreen computes top_line exactly as the
+     * Jaguar helper does.  NTSC-like config (bit $10 clear) uses 320x280 and
+     * High_Line=Zero_Line+20; PAL-like config uses 320x240 and equal lines. */
+    if ((AVP_MMIO16(JAG_CONFIG)&0x10u)==0u) {
+        SetScreen(320,280);
+        avp_mjp_set_lines((s32)(s16)top_line,(s32)(s16)top_line+20);
+    } else {
+        SetScreen(320,240);
+        avp_mjp_set_lines((s32)(s16)top_line,(s32)(s16)top_line);
+    }
+    /* OP list-head initialization and VMODE are hardware-owned; their CPU
+     * ordering is retained here. */
+    AVP_MMIO32(0x0004FC00u)=0; AVP_MMIO32(0x0004FC04u)=4;
+    AVP_MMIO32(0x00050C00u)=0; AVP_MMIO32(0x00050C04u)=4;
+    AVP_MMIO16(JAG_VMODE)=0x06C7u;
 }
 
 void SetScreen(u32 width,u32 height) {

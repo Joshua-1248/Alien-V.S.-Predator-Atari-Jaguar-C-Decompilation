@@ -290,6 +290,49 @@ void StopLoop(u32 h)
     unsigned i;
     for(i=0;i<AVP_SOUND_VOICES;i++)if(voice[i].handle==h){unloop_voice(i,1);return;}
 }
+/* MAZESCRN.S LoseSounds/RestoreSounds CPU bookkeeping.  Retail snapshots the
+ * complete second voice plus the first long of the third voice, preserves the
+ * weapon-effect identifier, silences all but the first two voices, and restores
+ * that state after pause.  The DSP table itself is represented by AvpVoiceState
+ * here; mixer execution remains backend-owned. */
+static AvpVoiceState pause_voice1;
+static s32 pause_voice2_type;
+static u32 pause_weapon_handle;
+static int pause_audio_valid;
+
+void avp_pause_audio_save(void)
+{
+    const AvpRuntimeOps *o=avp_runtime_ops();
+    fx_fade_level=0; /* UEBERVOLUME=0 before the table transfer */
+    pause_voice1=voice[1];
+    pause_voice2_type=voice[2].type;
+    pause_weapon_handle=voice[1].handle; /* VIdent+4 */
+    pause_audio_valid=1;
+    voice[2].type=AVP_SOUND_TYPE_STOPPED;
+    voice[0].type=AVP_SOUND_TYPE_STOPPED;
+    voice[1].type=AVP_SOUND_TYPE_STOPPED;
+    if(o->kill_sounds)o->kill_sounds(o->user);
+    fx_fade_level=0x7fff; /* in-pause sounds run at full master volume */
+}
+
+void avp_pause_audio_restore(void)
+{
+    const AvpRuntimeOps *o=avp_runtime_ops();
+    if(!pause_audio_valid)return;
+    /* Hardware version busy-waits for the two pause voices to become free.
+     * A host mixer owns completion; stopping them provides the same boundary. */
+    if(voice[0].type>=0)request_stop(0,0);
+    if(voice[1].type>=0)request_stop(1,0);
+    fx_fade_level=0;
+    Ambient();
+    voice[1]=pause_voice1;
+    voice[2].type=pause_voice2_type;
+    voice[1].handle=pause_weapon_handle;
+    fx_fade_level=0x7fff;
+    pause_audio_valid=0;
+    (void)o;
+}
+
 void ModSfx(u32 h,s32 value)
 {
     unsigned i;

@@ -31,6 +31,811 @@
     "AMP/AMP.S:718:AREQ_ERR": {
       "status": "DEAD_OR_RETAIL_DISABLED",
       "proof": "Diagnostic illegal instruction exists only under !NO_DEBUG."
+    },
+    "MAZE/PLAYER.S:814:give_energy": {
+      "status": "C_MERGED_PROVED",
+      "proof": "PLAYER.S give_energy is represented by collectables.c avp_give_energy: Predator medpak destination/cap, full-charge reject, saturating add, message and optional SFX semantics are explicit."
+    },
+    "MAZE/PLAYER.S:842:give_wep": {
+      "status": "C_MERGED_PROVED",
+      "proof": "PLAYER.S give_wep is represented by collectables.c avp_give_weapon, including owned-weapon fallthrough to ammo, higher-weapon autoswitch, message/SFX ordering."
+    },
+    "MAZE/PLAYER.S:870:give_ammo": {
+      "status": "C_MERGED_PROVED",
+      "proof": "PLAYER.S give_ammo is represented by collectables.c avp_give_ammo with weapon-indexed ammo record, full reject, saturation, message and optional SFX."
+    },
+    "MAZE/PLAYER.S:986:shoot_loop": {
+      "status": "C_MERGED_PROVED",
+      "proof": "Internal shoot_loop continuation is explicitly the AMP scan loop inside player.c TestSpark; source-order coarse box, rotation, nearest-Z and width checks are retained."
+    },
+    "MAZE/PLAYER.S:1399:LMM": {
+      "status": "C_MERGED_PROVED",
+      "proof": "Internal LMM continuation is explicitly represented inside player.c MovePlayer: deceleration, current-frame acceleration, sign/abs conversion, retail 3*max+min speed approximation and threshold handling."
+    },
+    "MAZE/PLAYER.S:1499:limits": {
+      "status": "DATA",
+      "proof": "limits is an authored data table, not executable 68000 code."
+    },
+    "MAZE/PLAYER.S:2023:test_fade": {
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "test_fade is only assembled under TEST_FADE/debug configuration and is excluded from the retail NO_DEBUG build."
+    },
+    "MAZE/LEVELS.S:466:xMap": {
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "PLAYER.INC sets TEST_PLACE=0 for retail; LEVELS.S xMap is assembled only under .if TEST_PLACE."
+    },
+    "MAZE/LEVELS.S:591:UnKillGPU": {
+      "status": "HARDWARE_RESOURCE_ONLY",
+      "proof": "UnKillGPU only configures JPEG/file decompression GPU mode, scratch addresses, reset/QCONV position and contains no gameplay/control decision."
+    },
+    "MAZE/LEVELS.S:932:FixDucts": {
+      "status": "C_EXACT",
+      "proof": "LEVELS.S FixDucts is the single CPU assignment floors=walls; levels.c now preserves that pointer alias explicitly."
     }
-  }
+  },
+  "scopes": [
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 814,
+      "end_line": 841,
+      "status": "C_MERGED_PROVED",
+      "proof": "give_energy complete source span mapped to collectables.c avp_give_energy; destination/cap/full/saturation/message/SFX flow checked."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 842,
+      "end_line": 869,
+      "status": "C_MERGED_PROVED",
+      "proof": "give_wep complete source span mapped to collectables.c avp_give_weapon; ownership/autoswitch/message/SFX/fallthrough flow checked."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 870,
+      "end_line": 900,
+      "status": "C_MERGED_PROVED",
+      "proof": "give_ammo complete source span mapped to collectables.c avp_give_ammo; indexed ammo/full/saturation/message/SFX flow checked."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 1399,
+      "end_line": 1498,
+      "status": "C_MERGED_PROVED",
+      "proof": "LMM movement continuation mapped explicitly inside MovePlayer; deceleration, acceleration, abs/sign, 3*max+min estimate, minimum-speed and max-speed branches checked."
+    },
+    {
+      "module": "MAZE/AVPCART.S",
+      "start_line": 18,
+      "end_line": 90,
+      "status": "C_EXACT",
+      "proof": "AVPCART shipping EEPROM policy span checked against surviving source: Init_EE/Default_EE/Trash_EE/Check_EE/Read_EE/Write_EE preserve 31-long checksum, REVISION xor, 64-word I/O order and default-on-mismatch flow; EEPRIM electrical bit-banging remains backend-only."
+    },
+    {
+      "module": "AMP/FONT.S",
+      "start_line": 36,
+      "end_line": 328,
+      "status": "C_MERGED_PROVED",
+      "proof": "FONT CPU text-engine span checked against source: three-brush proportional metric scan, repeat_pad gate, BE coordinate/control stream, FE/FD/FF controls, wrapping, input abort, 3-VBL teletype delay and 10/10 cursor state are explicit C."
+    },
+    {
+      "module": "AMP/FONT.S",
+      "start_line": 329,
+      "end_line": 610,
+      "status": "HARDWARE_RESOURCE_ONLY",
+      "proof": "FONT blitchar/horiz_line/vert_line/box_draw span contains only font/line placement plus Jaguar blitter register programming; C preserves placement/box arithmetic and delegates pixel/blitter execution, with no gameplay/control decision omitted."
+    },
+    {
+      "module": "MAZE/HUD_MSG.S",
+      "start_line": 19,
+      "end_line": 80,
+      "status": "C_MERGED_PROVED",
+      "proof": "HUD_MSG init span checked: current/new message reset is explicit; source font translation-table/data-copy setup is represented by C message records and host ASCII draw interface, affecting presentation/resource representation only."
+    },
+    {
+      "module": "MAZE/HUD_MSG.S",
+      "start_line": 81,
+      "end_line": 204,
+      "status": "C_MERGED_PROVED",
+      "proof": "HUD_MSG update/show span checked: new-message handoff, low-byte countdown semantics from packed msg_info, command advance, one-frame MSG_NEW display handshake, three-line centering/order are explicit C; glyph blits are presentation-only."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 76,
+      "end_line": 85,
+      "status": "C_EXACT",
+      "proof": "StdController source span matches the portable controller-function assignment."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 94,
+      "end_line": 210,
+      "status": "C_MERGED_PROVED",
+      "proof": "InitPlayer/ResetPlayer source span checked against player.c: species energy table, control init/reset, access/doors/HUD/collectable state, save restore and player flags are explicit C."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 211,
+      "end_line": 376,
+      "status": "C_MERGED_PROVED",
+      "proof": "init_random/random/BGSounds/UpdatePlayer span checked: seed MMIO capture, exact rotate/sub/xor PRNG return convention, background scheduler and player update ordering are explicit C; SFX payload remains resource-side."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 527,
+      "end_line": 663,
+      "status": "C_MERGED_PROVED",
+      "proof": "ResetClct/Collectables/CompCollect span checked: per-level body tables, object-grid lookup, body specialization, collected flag and object removal flow are explicit C."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 664,
+      "end_line": 813,
+      "status": "C_MERGED_PROVED",
+      "proof": "CollectIt source span checked: access cards, weapon ownership/autoswitch, ammo/full/saturation, motion tracker, food/medaid and Predator energy routing are explicit C."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 892,
+      "end_line": 1129,
+      "status": "C_MERGED_PROVED",
+      "proof": "TestSpark/shoot_loop span checked against source: random spread, swing term, FireDistance, coarse box, signed rotation, closest-z hit, damage/flags and 7/8 Human spark placement are explicit C."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 1130,
+      "end_line": 1168,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "CheckReset block is inside source `.if 0` and is not part of the shipping retail program."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 1169,
+      "end_line": 1238,
+      "status": "C_EXACT",
+      "proof": "ResetMove/InitMove source span checked: velocity reset, per-species max speed/angular acceleration and Alien acceleration shift are explicit C."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 1239,
+      "end_line": 1556,
+      "status": "C_MERGED_PROVED",
+      "proof": "MovePlayer/LMM complete source span checked: turn mode, angular clamp, acceleration/deceleration, 3*max+min speed estimate, min/max-speed branches, collision fallback and position update ordering are explicit C."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 1557,
+      "end_line": 1702,
+      "status": "C_MERGED_PROVED",
+      "proof": "TidyMove/do_predo span checked: player_vel approximation, maze-cell byte offset, Predator invisibility/vision transition counters and state changes are explicit C."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 1703,
+      "end_line": 1806,
+      "status": "C_MERGED_PROVED",
+      "proof": "PlayerWeapons span checked: species-specific weapon dispatch and fire state selection are represented in player.c/weapons.c; sound/resource execution remains backend-side."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 1807,
+      "end_line": 1874,
+      "status": "C_MERGED_PROVED",
+      "proof": "MapKeys/ChangeLevel span checked: edge-trigger map toggle and level-change state decisions are explicit C."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 1875,
+      "end_line": 2022,
+      "status": "C_MERGED_PROVED",
+      "proof": "ExtraKeys/TestKeys retail span checked: shipping control/cheat state that survives NO_DEBUG is explicit C; compiled-out debug-only test body is not relied upon."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 2023,
+      "end_line": 2094,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "test_fade/debug control block is excluded by the retail NO_DEBUG configuration as documented by the source-guided audit."
+    },
+    {
+      "module": "MAZE/PLAYER.S",
+      "start_line": 2095,
+      "end_line": 2258,
+      "status": "C_MERGED_PROVED",
+      "proof": "HumanPain/Pain source span checked: species/random pain sounds, energy delta/recovery, pain colour progression and death/recoil decisions are explicit C."
+    },
+    {
+      "module": "MAZE/MAZE.S",
+      "start_line": 27,
+      "end_line": 202,
+      "status": "C_MERGED_PROVED",
+      "proof": "PlayAvP full retail loop checked: initial/load/post-first, fade sequencing, end-count/explosion timing, computer entry/exit, duct/level transitions, leave/reload and terminal sound cleanup are explicit C; message/audio identities remain resource callbacks."
+    },
+    {
+      "module": "MAZE/MAZE.S",
+      "start_line": 211,
+      "end_line": 243,
+      "status": "C_EXACT",
+      "proof": "PostFirst source span matches overlay init, ScreenOff/SetMazeList, FadeUp, savegame clear and end_count clear ordering."
+    },
+    {
+      "module": "MAZE/MAZE.S",
+      "start_line": 244,
+      "end_line": 265,
+      "status": "C_EXACT",
+      "proof": "FadeUp/FadeDown/ExplodeFade state assignments and rates match source."
+    },
+    {
+      "module": "MAZE/MAZE.S",
+      "start_line": 266,
+      "end_line": 286,
+      "status": "C_MERGED_PROVED",
+      "proof": "ResetMaze span matches hug_init, map/GPU reset, alien_bite clear and ambient restart; GPU reset/audio execution are backend operations."
+    },
+    {
+      "module": "MAZE/MAZE.S",
+      "start_line": 287,
+      "end_line": 337,
+      "status": "C_MERGED_PROVED",
+      "proof": "InitGame span checked after RE7 fix: save species decode, double-buffer/level/sprite/debug/MGPU/player init, explicit gmps_at/clist_at publication, AMP init and computer init preserve source order; resource payload bases are host-bound."
+    },
+    {
+      "module": "MAZE/MAZE.S",
+      "start_line": 338,
+      "end_line": 356,
+      "status": "C_EXACT",
+      "proof": "MazeDebug retail configuration has DEB_CLR=0 and the test block disabled, so shipping routine has no state-changing body."
+    },
+    {
+      "module": "MAZE/MAZE.S",
+      "start_line": 357,
+      "end_line": 432,
+      "status": "C_MERGED_PROVED",
+      "proof": "NextFrame span checked: CPU snapshots x/y/angle and AMP/GMP/creature pointers, trig values, Alien bite view shift, GPU launch boundary, player/AMP update ordering, energy clamp, end-game, pre/swap/post/pause sequence are explicit C; GPUBUF synchronization is hardware-only."
+    },
+    {
+      "module": "MAZE/MAZE.S",
+      "start_line": 433,
+      "end_line": 502,
+      "status": "C_MERGED_PROVED",
+      "proof": "Process_EndGame span checked: active-sequence guard, death/cheat/key lock, species death SFX selection, Alien cocoon override and game_over/destruct delay are explicit C."
+    },
+    {
+      "module": "MAZE/MAZE.S",
+      "start_line": 503,
+      "end_line": 535,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "TestLine is enclosed by source `.if 0` and is not in the retail shipping program."
+    },
+    {
+      "module": "MAZE/MAZE.S",
+      "start_line": 536,
+      "end_line": 565,
+      "status": "HARDWARE_RESOURCE_ONLY",
+      "proof": "MazeClear retail branch is framebuffer clear/blitter memory work only; no gameplay/control decision is omitted from portable C."
+    },
+    {
+      "module": "MAZE/MAZE.S",
+      "start_line": 566,
+      "end_line": 589,
+      "status": "C_EXACT",
+      "proof": "sin_d0/cos_d0 folding, table index, half-before-negate and quadrant sign behavior match source."
+    },
+    {
+      "module": "MAZE/MAZE.S",
+      "start_line": 590,
+      "end_line": 616,
+      "status": "C_EXACT",
+      "proof": "ResetScale duct-range scale/width selection and centre_offset integer division match source."
+    },
+    {
+      "module": "MAZE/COLLIDE.S",
+      "start_line": 40,
+      "end_line": 175,
+      "status": "C_MERGED_PROVED",
+      "proof": "AreaDamage/AreaAmpDamage/AreaPlDamage span checked: rough-distance gate, killable filtering, line-of-sight test, player/AMP energy subtraction and damage-flag propagation are explicit C."
+    },
+    {
+      "module": "MAZE/COLLIDE.S",
+      "start_line": 176,
+      "end_line": 368,
+      "status": "C_MERGED_PROVED",
+      "proof": "Angle/Vector span checked: signed quadrant folding, normalization, atan table indexing and source integer vector approximation are explicit C."
+    },
+    {
+      "module": "MAZE/COLLIDE.S",
+      "start_line": 369,
+      "end_line": 899,
+      "status": "C_MERGED_PROVED",
+      "proof": "FireDistance/LineOfSight and shared scanner span checked against the repaired source-shaped C: octant reflection, first-cell rounding, wall/door tests, distance stepping and major/minor-axis LOS math remain integer/source ordered."
+    },
+    {
+      "module": "MAZE/COLLIDE.S",
+      "start_line": 900,
+      "end_line": 1030,
+      "status": "C_MERGED_PROVED",
+      "proof": "AllowedMoves/NMoves span checked: wall-number quick-path semantics and directional cell stepping are explicit C."
+    },
+    {
+      "module": "MAZE/COLLIDE.S",
+      "start_line": 1031,
+      "end_line": 1373,
+      "status": "C_MERGED_PROVED",
+      "proof": "SafePos/check_wall span checked: 8-byte maze cells, low-word maze-width addressing semantics, wall reflection/bulk/door-open tests and corner handling are explicit C."
+    },
+    {
+      "module": "MAZE/COLLIDE.S",
+      "start_line": 1374,
+      "end_line": 1503,
+      "status": "C_MERGED_PROVED",
+      "proof": "AMPCollisions span checked: 3x3 collision-map neighborhood, one-based AMP lookup, creature collision widths and axis-width overlap test are explicit C."
+    },
+    {
+      "module": "MAZE/LEVELS.S",
+      "start_line": 84,
+      "end_line": 126,
+      "status": "C_MERGED_PROVED",
+      "proof": "InitLevels span rechecked against surviving retail source: species start-level selection, verbatim four-bit save level restore, FirstPos call and MAX_PANELS fill with 0xff are explicit C."
+    },
+    {
+      "module": "MAZE/LEVELS.S",
+      "start_line": 127,
+      "end_line": 143,
+      "status": "C_EXACT",
+      "proof": "LeaveLevel source span matches C ordering: SaveDoors, save_level, then new_level -> cur_level; debug-only level_ready handling is excluded by retail NO_DEBUG."
+    },
+    {
+      "module": "MAZE/LEVELS.S",
+      "start_line": 144,
+      "end_line": 180,
+      "status": "C_MERGED_PROVED",
+      "proof": "SetStart span rechecked: explicit new_x/new_y path, exact high-word invalidation semantics for new_x, FORCE_START fallback and packed save position/angle decode are explicit C."
+    },
+    {
+      "module": "MAZE/LEVELS.S",
+      "start_line": 181,
+      "end_line": 204,
+      "status": "C_MERGED_PROVED",
+      "proof": "FirstPos span rechecked: high-word invalidation of new_x and level-table start x/y/angle selection are explicit C; debug DEB_POS path is excluded by retail NO_DEBUG."
+    },
+    {
+      "module": "MAZE/LEVELS.S",
+      "start_line": 261,
+      "end_line": 286,
+      "status": "C_EXACT",
+      "proof": "KillBastards span matches the retail AMP scan: same-cell test, cocoon/Queen/shield/generator exemptions and mode clear are explicit C."
+    },
+    {
+      "module": "MAZE/LEVELS.S",
+      "start_line": 466,
+      "end_line": 496,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "xMap diagnostic visualizer is enclosed by TEST_PLACE; retail PLAYER.INC defines TEST_PLACE=0."
+    },
+    {
+      "module": "MAZE/LEVELS.S",
+      "start_line": 591,
+      "end_line": 609,
+      "status": "HARDWARE_RESOURCE_ONLY",
+      "proof": "UnKillGPU is exclusively JPEG/file-GPU/scratch/QCONV configuration and has no gameplay/control branch or state."
+    },
+    {
+      "module": "MAZE/LEVELS.S",
+      "start_line": 932,
+      "end_line": 936,
+      "status": "C_EXACT",
+      "proof": "FixDucts is exactly floors=walls and is now represented directly in levels.c."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 32,
+      "end_line": 70,
+      "status": "C_MERGED_PROVED",
+      "proof": "InitDoors span rechecked: levfx reset, 16x8 mirrored fullbits expansion with zero entries, per-level save pointers clear and free-area reset are explicit C; disabled .if 0 door-key block is non-retail."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 71,
+      "end_line": 130,
+      "status": "C_MERGED_PROVED",
+      "proof": "SaveDoors span rechecked: current-level save allocation, width*height cell scan, LEFT/TOP door classification through fullbits, serialized open-byte order and free-pointer advancement are explicit C."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 131,
+      "end_line": 214,
+      "status": "C_MERGED_PROVED",
+      "proof": "ResetDoors span rechecked: same saved-byte scan/order, active-door/computer/lift state clear and authored lift-door force-close for levels 1..5 are explicit C."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 1103,
+      "end_line": 1111,
+      "status": "C_EXACT",
+      "proof": "InitAccess exactly maps Human to retail INIT_ACS=0 and Alien/Predator to access level 10."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 1112,
+      "end_line": 1118,
+      "status": "C_MERGED_PROVED",
+      "proof": "ResetAccess source pointer selection is represented by selecting the bound metadata record for cur_level; resource table identity is host-bound, CPU selection semantics match."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 215,
+      "end_line": 522,
+      "status": "C_MERGED_PROVED",
+      "proof": "DoorKeys/lift_door/normal_door controller span rechecked against source: active-low edge/held lift input, facing side derivation, panel_list special dispatch, computer/duct/lift gating, single/double door reversal/allocation, access-before-open, reflected mate step, common direction/limit selection, collision-record setup, SFX and local move_doors lift-key clear are explicit in doors.c helpers."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 523,
+      "end_line": 650,
+      "status": "C_MERGED_PROVED",
+      "proof": "init_dcoll/door_coll span rechecked: dc_tab x/y normalization, 64-wide collision-grid indices, door threshold, player axis/range collision, both AMP fractional tests, single/double reversal and SFX are explicit C."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 651,
+      "end_line": 711,
+      "status": "C_EXACT",
+      "proof": "MoveDoors span matches source ordering: collision reversal checks occur before motion, each active byte advances by signed step, pointers clear at zero/limit, double-door flag clears with door2 completion, then check_lift runs."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 712,
+      "end_line": 826,
+      "status": "C_MERGED_PROVED",
+      "proof": "do_lifts span rechecked: active-low up/down direction, Alien/jammed-lift rejection, level bounds, exact LIFTDOR byte search, lift direction/pointer/square capture, already-closing tests, lift_door re-entry and lift_key exit semantics are explicit C."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 827,
+      "end_line": 881,
+      "status": "C_EXACT",
+      "proof": "check_lift/lift_exit span rechecked: square-abort tests, closed-door transition, active door-direction checks, lift pointer clear, level delta, exact x/y carryover and lift SFX handle are explicit C."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 898,
+      "end_line": 960,
+      "status": "C_MERGED_PROVED",
+      "proof": "do_ducts/find_exit span rechecked: authored low-word re-entry coordinates and angle by side, panel-offset exit lookup, high-word destination writes and level assignment are explicit C through bound exit metadata."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 961,
+      "end_line": 1017,
+      "status": "C_MERGED_PROVED",
+      "proof": "do_airlock span rechecked: level/door interlock lookup, all-required-door closed scan, low-word position carryover, exit lookup, pressure/not-secure message selection and airlock effect are explicit C."
+    },
+    {
+      "module": "MAZE/DOORS.S",
+      "start_line": 1018,
+      "end_line": 1102,
+      "status": "C_MERGED_PROVED",
+      "proof": "check_access span rechecked: open-door bypass, authored access lookup, unused/jammed/airlock/escape special codes, access-level compare, security number message update and Human grant SFX are explicit C."
+    },
+    {
+      "module": "MAIN/MAIN.S",
+      "start_line": 247,
+      "end_line": 292,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "JagPeg/TestC/TestA development-test span is under !NO_DEBUG; retail LAYOUT.INC sets NO_DEBUG=1 (and the TestC sub-block is additionally .if 0)."
+    },
+    {
+      "module": "MAIN/MAIN.S",
+      "start_line": 419,
+      "end_line": 482,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "SHOW_VERSION=0 in the retail NO_DEBUG configuration, so Version is not assembled; quick_text has no remaining caller/reference once Version is excluded and is unreachable shipping utility code."
+    },
+    {
+      "module": "MAIN/MAIN.S",
+      "start_line": 608,
+      "end_line": 652,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "Old Title implementation is the .else branch of NEW_TITLE; MAIN.S defines NEW_TITLE=1, so this span is not assembled in retail."
+    },
+    {
+      "module": "MAIN/MAIN.S",
+      "start_line": 653,
+      "end_line": 1002,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "virtue/protab/BOG/rnd_test development span is enclosed by .if !NO_DEBUG; retail sets NO_DEBUG=1. Nested virtue/rnd_test bodies are also explicitly commented out with .if 0."
+    },
+    {
+      "module": "MAIN/MAIN.S",
+      "start_line": 1008,
+      "end_line": 1078,
+      "status": "HARDWARE_RESOURCE_ONLY",
+      "proof": "SetupGpu/SetFixGpu/SetGpuBin only stop/configure the Jaguar GPU, round transfer byte counts and copy GPU program images; no gameplay/control semantics are present."
+    },
+    {
+      "module": "MAIN/MAIN.S",
+      "start_line": 1079,
+      "end_line": 1099,
+      "status": "HARDWARE_RESOURCE_ONLY",
+      "proof": "ClearStack only clears/poisons the fixed Jaguar stack scratch range; hosted C ABI owns its stack and there is no persistent game-state effect."
+    },
+    {
+      "module": "MAIN/MAIN.S",
+      "start_line": 1103,
+      "end_line": 1493,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "BlitTest is a standalone blitter/display timing diagnostic with no callers or references in the shipping source tree; it is unreachable from the retail program control flow."
+    },
+    {
+      "module": "MAIN/MAIN.S",
+      "start_line": 122,
+      "end_line": 152,
+      "status": "C_MERGED_PROVED",
+      "proof": "start/re_start/reset span rechecked: normal start/reset enter main_start while re_start kills active sound/GPU-host work and now enters the common back_in path without reinitializing player_type."
+    },
+    {
+      "module": "MAIN/MAIN.S",
+      "start_line": 153,
+      "end_line": 246,
+      "status": "C_MERGED_PROVED",
+      "proof": "main_start/back_in initialization span rechecked: retail initial Alien species, Jaguar/platform init, stack-clear boundary, EEPROM/controller/files/video/audio init and CLUT clear ordering are explicit; phrase-alignment/link-layout traps are build/platform integrity checks with no gameplay semantics."
+    },
+    {
+      "module": "MAIN/MAIN.S",
+      "start_line": 294,
+      "end_line": 407,
+      "status": "C_MERGED_PROVED",
+      "proof": "shipping main loop/outro span rechecked: title/select/load -> PlayAvP loop, ProtectVoices(7), InitMJP/320x240 setup, dead/base/escape/Alien/Pred ending dispatch, grunke values 2/1, Hall-of-Fame, FX-fade wait, music stop and volume restore are explicit C."
+    },
+    {
+      "module": "MAIN/MAIN.S",
+      "start_line": 408,
+      "end_line": 418,
+      "status": "C_MERGED_PROVED",
+      "proof": "stop/safe terminal path is represented by hosted stopped-state termination plus KillAll; INT1/OLP/BG clears and final illegal trap are Jaguar/process shutdown semantics, not omitted game logic."
+    },
+    {
+      "module": "MAIN/MAIN.S",
+      "start_line": 485,
+      "end_line": 607,
+      "status": "C_MERGED_PROVED",
+      "proof": "NewTitle shipping span rechecked: in_title, InitMJP, 320x240/50-Hz 320x280 framing, allow_reset gate, OPTION Fame/EEPROM clear, grunke=0 cases, 141 VBL title delay, title menu Choice contract, save-slot validation/fade/music shutdown, character select mapping, in_select and InitFiles handoff are explicit C; display-list publication remains presentation backend work."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 1562,
+      "end_line": 1578,
+      "status": "C_EXACT",
+      "proof": "InitMap span rechecked: old_map/map_on clear, retail START_MAP=0, and species-indexed authored map window x/y/w/h selection are explicit C."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 1579,
+      "end_line": 1693,
+      "status": "C_MERGED_PROVED",
+      "proof": "With retail GPU_AUTOMAP=1 and AUTOMAP=1, ResetMap live CPU work is the map_data clear orchestration; CPU map raster construction branches are not assembled. C delegates the clear to reset_map backend."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 1694,
+      "end_line": 1956,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "Entire UpdtMap CPU rasterizer is enclosed by .if !GPU_AUTOMAP; retail PLAYER.INC defines GPU_AUTOMAP=1."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 1979,
+      "end_line": 2059,
+      "status": "C_MERGED_PROVED",
+      "proof": "ShowMap retail GPU_AUTOMAP path checked: CPU old_map/map_on falling-edge state is explicit C; sin/cos, screen/HUD pointers, map_info and automapping execution are GPU/presentation backend work."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 855,
+      "end_line": 1043,
+      "status": "C_MERGED_PROVED",
+      "proof": "Cocoon lifecycle span rechecked against retail source: initialization/restored packed decode, descending-slot insertion, readiness compare, cocoon-driven restart coordinates/level/energy, record shift/removal, frame timers and redraw orchestration are explicit C. CheckCocoon is side-effect free; use_cocoon ownership remains with MAZE.S Process_EndGame exactly as retail."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 1049,
+      "end_line": 1097,
+      "status": "HARDWARE_RESOURCE_ONLY",
+      "proof": "DrawCocoon computes and launches a Jaguar blitter transfer/clear for the already-selected cocoon frame and HUD position. It changes no persistent gameplay/control state; hosted rendering receives equivalent frame/state through the HUD backend."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 31,
+      "end_line": 76,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "TracTest diagnostic is enclosed by .if 0 in shipping HUD.S and is not assembled."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 79,
+      "end_line": 143,
+      "status": "C_MERGED_PROVED",
+      "proof": "InitHUD/ResetHUD CPU state rechecked: show_coords, HUD message/energy/score/map/cocoon initialization, motion-tracker enable, invis/countdown state, click_track/scope reset and current-level redraw are explicit C. Brush pixel copies are renderer/resource work."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 159,
+      "end_line": 287,
+      "status": "C_MERGED_PROVED",
+      "proof": "Human HUD span rechecked: energy update, START_MT/show_mt gating, exact 0..7 scope animation, GPU nearest-distance handoff, TC click_track convergence, tracker FX parameter math/trigger state, score/access update and destruction-countdown start/update are explicit C; GPU tracker raster and audio playback remain backend work."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 304,
+      "end_line": 435,
+      "status": "C_MERGED_PROVED",
+      "proof": "Countdown CPU state/timing is explicit C: retail 120+1 start, two-second first tick, byte flash oscillator, catch-up loop, cue threshold retention, countdown text digits, alarm kill and game_over/xtra_c terminal transition. Audio/message rendering are backend/data seams."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 436,
+      "end_line": 599,
+      "status": "C_MERGED_PROVED",
+      "proof": "Alien/Predator/UpdtHUD span rechecked: Alien energy+cocoon+score order, Predator energy and exact 16-bit sound-meter smoothing/clamps/old_meter update plus score, score-negative clamp, species dispatch, HUD message/map and show_coords dispatch are explicit C. Blitter meter drawing/border writes are presentation-only."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 636,
+      "end_line": 833,
+      "status": "C_MERGED_PROVED",
+      "proof": "Energy meter CPU setup/update is explicit C: species config, rescale/size/frame/timer state, pre-increment source frame, 4/2 flash cadence, low-energy 3/8 threshold, max clamp and visible-pixel width calculation. Blitter clear/copy is presentation-only."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 1098,
+      "end_line": 1224,
+      "status": "C_MERGED_PROVED",
+      "proof": "Score/access span is represented in hud_score.c: old_score/old_acs sentinels, species-specific change detection, Human show_coords energy substitution, and access-level change detection are CPU-side C; numeric GPU rasterization uses draw-number backend."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 1227,
+      "end_line": 1390,
+      "status": "HARDWARE_RESOURCE_ONLY",
+      "proof": "ShowPos/xDecPrint/DecPrint/DecCommon/HexPrint only format coordinates/numbers into HUD pixel brushes; they change no persistent gameplay/control state. show_coords gating remains explicit in UpdtHUD; hosted renderer owns this presentation-only brush output."
+    },
+    {
+      "module": "MAZE/HUD.S",
+      "start_line": 1399,
+      "end_line": 1502,
+      "status": "C_MERGED_PROVED",
+      "proof": "HUD palette controller rechecked: InitHUDPal sets retail brightness 64; HUDBright uses active-low left/right input with +8 upper signed saturation and -8 floor at -96; ZeroHUDBright no longer mutates hud_bright. Per-entry CRY palette RMW/copy loops are resource/presentation backend work."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 68,
+      "end_line": 292,
+      "status": "C_MERGED_PROVED",
+      "proof": "Computer entry/display/input/overlay span rechecked: cls/init font, exact repeat_pad inversion semantics, retail terminal lookup by level+comp_offset through bound descriptors, display save/restore sequencing, overlay hide/select ownership and resource-buffer presentation are represented. CLUT/OP/file expansion is backend/resource-only."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 300,
+      "end_line": 303,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "compgo is an unused startup-text helper; its only Computer call is commented out in the shipping source."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 311,
+      "end_line": 760,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "Legacy security-computer subtree has no targets in the audited retail terminal dispatch table; final shipping terminals dispatch only generic, armoury, medical and pod handlers."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 761,
+      "end_line": 775,
+      "status": "C_MERGED_PROVED",
+      "proof": "Shared exit_comp behavior is represented by handler return into Computer: RestoreCDisplay then comp_panel=0, preserving the retail terminal-exit side effects."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 776,
+      "end_line": 990,
+      "status": "C_MERGED_PROVED",
+      "proof": "Armoury main menu and live arsenal viewer are explicit C: two-option wrap/input/release rules, C exit/B select, four authored weapon entries and A/B cyclic navigation. Text/overlay identity is resource/backend data."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 991,
+      "end_line": 1079,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "lieu_log is an older orphan log viewer; final armoury armlist targets arsenal and genlog, not lieu_log."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 1080,
+      "end_line": 1282,
+      "status": "C_MERGED_PROVED",
+      "proof": "Medical main menu and first-aid CPU semantics are explicit C: menu wrap/selection, healthy/denied/result distinctions, access levels 4..10 and exact 500/750/1000 target table with target>=current write rule. Authored text is resource data."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 1283,
+      "end_line": 1328,
+      "status": "C_MERGED_PROVED",
+      "proof": "Live scheme viewer now preserves low-word key release, level-indexed authored map selection, VBL/pad loop and C exit; actual map image/text/cursor raster is presentation/resource work."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 1329,
+      "end_line": 1459,
+      "status": "C_MERGED_PROVED",
+      "proof": "Species viewer is represented by the six-entry fixed_viewer state machine: picount=0, C exit, A/B release and cyclic 0..5 navigation; the paired creature images and authored text remain ROM resource data."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 1461,
+      "end_line": 1565,
+      "status": "C_MERGED_PROVED",
+      "proof": "Medical-log submenu CPU controller is explicit C with two-option menu, exact wrap/release/C/B rules, and final targets genlog/species."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 1566,
+      "end_line": 1647,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "medlog is an orphan older chief-medical log viewer; final medmenlist targets genlog and species instead."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 1656,
+      "end_line": 1794,
+      "status": "C_MERGED_PROVED",
+      "proof": "Generic terminal controller is explicit C: access-9 alternate content, destruct option only when eligible/not already armed/access>=10, 2/3-option cursor wrap, C exit/B selection and dispatch to scheme/genlog/destruct warning."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 1795,
+      "end_line": 1829,
+      "status": "HARDWARE_RESOURCE_ONLY",
+      "proof": "prpoint only erases/redraws the visual > cursor glyph at the menu y position; cursorpos CPU ownership is already explicit and this span changes no game/control state."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 1833,
+      "end_line": 1916,
+      "status": "DEAD_OR_RETAIL_DISABLED",
+      "proof": "Unlabelled older schematic/info carousel follows prpoint's RTS and the historical scheme label is commented out; there is no live entry/reference to this block."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 1920,
+      "end_line": 2035,
+      "status": "C_MERGED_PROVED",
+      "proof": "genlog page viewer is explicit C: picount start, pages wrap, C return, A/B cycling with release waits and authored page selection. Page-number/text raster is presentation/resource data."
+    },
+    {
+      "module": "MAZE/COMPUTER.S",
+      "start_line": 2040,
+      "end_line": 2177,
+      "status": "C_MERGED_PROVED",
+      "proof": "Escape-pod computer is explicit C: destruct_flag gate, no-launch C exit, one-option menu, launch_flag=1 transition and launched screen waiting for B before common exit."
+    },
+    {
+      "module": "MAZE/LEVELS.S",
+      "start_line": 1,
+      "end_line": 1138,
+      "status": "C_MERGED_PROVED",
+      "proof": "Final RE7 whole-module source sweep: live level/save/start/placement logic is explicit C; TransMaze/GetPanels/LoadPanels/itrans CPU-owned dimensions/panel-position/reuse/notice-overlay arithmetic is represented by levels.c state plus portable panel/overlay-plan helpers, while compressed resource transfer/JPEG/blitter work remains typed backend hardware/resource work. Retail-disabled TEST_PLACE/MAZE_SWAPS code remains non-shipping."
+    },
+    {
+      "module": "MAZE/MAZESCRN.S",
+      "start_line": 1,
+      "end_line": 4804,
+      "status": "C_MERGED_PROVED",
+      "proof": "Final RE7 whole-module source sweep: all live 68000 double-buffer/pause/list/audio-bookkeeping/fade/weapon/swing/overlay controller state and branch decisions are represented in mazescrn.c and linked C modules. Shot callback is an optional port/test override with TestSpark as default; screen/OP/GPU/blitter/resource publication remains hardware/presentation-only. Data tables/addresses are not executable semantics."
+    },
+    {
+      "module": "AMP/AMP.S",
+      "start_line": 1,
+      "end_line": 8448,
+      "status": "C_MERGED_PROVED",
+      "proof": "Final RE7 whole-module source sweep: all live AMP lifecycle, save/restore, placement/random population, projectiles, chase/collision, creature state machines, queen/endgame, score, cocoon/egg/generator/shield/spark and weapon-hit decisions are explicit in amp.c with focused regressions. SafePos/AreaDamage/door-lift behavior default to translated CPU C; remaining callbacks are observer/test overrides or DSP/audio/resource hooks. Debug AREQ_ERR/AKILL_ERR and data/editor tables are non-shipping or non-executable."
+    }
+  ]
 }

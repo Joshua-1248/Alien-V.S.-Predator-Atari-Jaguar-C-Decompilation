@@ -343,7 +343,7 @@ static int do_lifts(u8 *cell,unsigned side)
     if(player_type==PT_ALIEN){avp_hudmsg_queue(avp_msg_jlift);play(DSFX_FLUP1);lift_key=0xffu;return 0;}
     if((u16)(x_pos>>16)==9u&&(u16)(y_pos>>16)==21u&&((cur_level==3&&dir>0)||(cur_level==4&&dir<0))){avp_hudmsg_queue(avp_msg_jlift);play(DSFX_FLUP1);lift_key=0xffu;return 0;}
     target=cur_level+dir;if(target<=0||target>=6){play(DSFX_FLUP1);lift_key=0xffu;return 0;}lift_dir=(s8)dir;
-    for(i=0;i<4u;++i)if((cell[i]&0x7fu)==LIFTDOR){door_side=i;door=door_ptr_for(cell,i);break;}
+    for(i=0;i<4u;++i)if(cell[i]==LIFTDOR){door_side=i;door=door_ptr_for(cell,i);break;}
     if(!door){play(DSFX_FLUP1);lift_key=0xffu;return 0;}
     /* `beq lift_exit` branches out of do_lifts and returns directly to DoorKeys;
      * it does not execute .exit and therefore does not set lift_key=-1. */
